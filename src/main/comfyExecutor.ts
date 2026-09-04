@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs'
 import { basename, join, extname } from 'node:path'
 import type { AppSettings } from '../shared/types'
+import { tr, type Lang } from '../shared/i18n'
 
 export interface ComfyResult {
   ok: boolean
@@ -34,6 +35,16 @@ export class ComfyExecutor {
 
   constructor(private readonly getSettings: () => AppSettings) {}
 
+  /** 当前界面语言（跟随设置） */
+  private lang(): Lang {
+    return this.getSettings().language === 'en' ? 'en' : 'zh'
+  }
+
+  /** 当前语言下的用户可见消息 */
+  private t(key: string, vars?: Record<string, string | number>): string {
+    return tr(this.lang(), key, vars)
+  }
+
   getNextSegmentIndex(): number {
     return this.segmentIndex + 1
   }
@@ -47,15 +58,15 @@ export class ComfyExecutor {
     extra?: { referenceImagePath?: string }
   ): Promise<ComfyResult> {
     const settings = this.getSettings()
-    if (!settings.comfyUrl) return { ok: false, message: '未配置 ComfyUI 地址' }
-    if (!settings.workflowPath) return { ok: false, message: '未配置 ComfyUI 工作流 JSON' }
+    if (!settings.comfyUrl) return { ok: false, message: this.t('comfy.noUrl') }
+    if (!settings.workflowPath) return { ok: false, message: this.t('comfy.noWorkflow') }
 
     // 读取工作流
     let workflow: any
     try {
       workflow = await this.readWorkflow(settings.workflowPath)
     } catch (error: any) {
-      return { ok: false, message: `读取工作流失败：${String(error?.message || error)}` }
+      return { ok: false, message: this.t('comfy.readFail', { msg: String(error?.message || error) }) }
     }
 
     // 修改工作流：填提示词、参考图、画质、步数、时长
@@ -64,16 +75,16 @@ export class ComfyExecutor {
       await this.uploadReferenceImage(settings, extra?.referenceImagePath)
       this.applyWorkflowParams(workflow, videoPrompt, settings, extra?.referenceImagePath)
     } catch (error: any) {
-      return { ok: false, message: `填充工作流参数失败：${String(error?.message || error)}` }
+      return { ok: false, message: this.t('comfy.fillFail', { msg: String(error?.message || error) }) }
     }
 
     // 提交
     const promptId = await this.submit(workflow)
-    if (!promptId) return { ok: false, message: 'ComfyUI 未返回任务 ID' }
+    if (!promptId) return { ok: false, message: this.t('comfy.noTaskId') }
 
     // 轮询等待成片
     const outputFile = await this.pollForOutput(promptId)
-    if (!outputFile) return { ok: false, message: '轮询超时：未等到成片' }
+    if (!outputFile) return { ok: false, message: this.t('comfy.pollTimeout') }
 
     // 重命名到 streamsDir
     this.segmentIndex += 1
@@ -81,9 +92,9 @@ export class ComfyExecutor {
     try {
       await this.copyToStreams(outputFile, segName)
     } catch (error: any) {
-      return { ok: false, message: `复制成片失败：${String(error?.message || error)}` }
+      return { ok: false, message: this.t('comfy.copyFail', { msg: String(error?.message || error) }) }
     }
-    return { ok: true, message: `已生成 ${segName}`, fileName: segName }
+    return { ok: true, message: this.t('comfy.generated', { name: segName }), fileName: segName }
   }
 
   private async readWorkflow(path: string): Promise<any> {
@@ -92,7 +103,7 @@ export class ComfyExecutor {
     // 支持 { prompt: {...} } 包裹的 API 格式
     if (parsed?.prompt && typeof parsed.prompt === 'object') return parsed.prompt
     if (parsed && typeof parsed === 'object') return parsed
-    throw new Error('工作流格式无法识别')
+    throw new Error(this.lang() === 'en' ? 'Workflow format not recognized' : '工作流格式无法识别')
   }
 
   private applyWorkflowParams(
@@ -107,7 +118,11 @@ export class ComfyExecutor {
     // 1. 找到提示词节点并写入提示词
     const promptNode = this.findPromptNode(nodes)
     if (!promptNode) {
-      throw new Error('工作流中未找到可写入的提示词节点（未找到含 prompt 输入的节点）')
+      throw new Error(
+        this.lang() === 'en'
+          ? 'No writable prompt node found in the workflow (no node with a prompt input)'
+          : '工作流中未找到可写入的提示词节点（未找到含 prompt 输入的节点）'
+      )
     }
     this.writePrompt(promptNode, prompt)
 
@@ -214,7 +229,7 @@ export class ComfyExecutor {
       widgets.push(prompt)
       return
     }
-    throw new Error('提示词节点结构无法写入')
+    throw new Error(this.lang() === 'en' ? 'Prompt node structure cannot be written' : '提示词节点结构无法写入')
   }
 
   /**
@@ -298,7 +313,7 @@ export class ComfyExecutor {
     try {
       buf = await fs.readFile(referenceImagePath)
     } catch (error: any) {
-      throw new Error(`参考图文件读取失败：${String(error?.message || error)}`)
+      throw new Error(this.t('comfy.uploadReadFail', { msg: String(error?.message || error) }))
     }
     const fileName = basename(referenceImagePath)
     const base = settings.comfyUrl.replace(/\/+$/, '')
@@ -334,9 +349,13 @@ export class ComfyExecutor {
     }
     const reason =
       (lastError as any)?.name === 'AbortError'
-        ? `上传参考图超时（每次 ${UPLOAD_TIMEOUT_MS / 1000} 秒，已重试 ${MAX_ATTEMPTS} 次）：${fileName}`
+        ? this.t('comfy.uploadTimeout', {
+            sec: UPLOAD_TIMEOUT_MS / 1000,
+            tries: MAX_ATTEMPTS,
+            name: fileName
+          })
         : String((lastError as any)?.message || lastError)
-    throw new Error(`上传参考图失败：${reason}`)
+    throw new Error(this.t('comfy.uploadFail', { msg: reason }))
   }
 
   private applyDuration(nodes: PromptNode[], durationSec: number): void {
@@ -427,7 +446,7 @@ export class ComfyExecutor {
       }
       return typeof json?.prompt_id === 'string' ? json.prompt_id : null
     } catch (error: any) {
-      throw new Error(`提交 ComfyUI 失败：${String(error?.message || error)}`)
+      throw new Error(this.t('comfy.submitFail', { msg: String(error?.message || error) }))
     } finally {
       clearTimeout(timer)
     }
@@ -473,10 +492,10 @@ export class ComfyExecutor {
 
   private async copyToStreams(outputUrl: string, segName: string): Promise<void> {
     const settings = this.getSettings()
-    if (!settings.streamsDir) throw new Error('未配置成片目录 streamsDir')
+    if (!settings.streamsDir) throw new Error(this.t('comfy.noStreamsDir'))
     await fs.mkdir(settings.streamsDir, { recursive: true })
     const res = await fetch(outputUrl)
-    if (!res.ok) throw new Error(`下载成片失败 HTTP ${res.status}`)
+    if (!res.ok) throw new Error(this.t('comfy.downloadFail', { status: res.status }))
     const buffer = Buffer.from(await res.arrayBuffer())
     const target = join(settings.streamsDir, segName)
     await fs.writeFile(target, buffer)

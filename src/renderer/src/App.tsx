@@ -8,6 +8,7 @@ import type {
   StreamEventPayload
 } from '../../shared/types'
 import { EMPTY_CLOTHING_STATE } from '../../shared/types'
+import { giftLevelName, tr, type Lang } from '../../shared/i18n'
 
 type TabKey = 'chat' | 'gifts' | 'activity' | 'director' | 'replay'
 
@@ -26,22 +27,34 @@ interface DanmakuItem {
 }
 
 interface GiftItem {
+  key: string
   name: string
+  nameEn: string
   emoji: string
   level: string
   price: number
 }
 
 const GIFTS: GiftItem[] = [
-  { name: '小心心', emoji: '💗', level: '小额', price: 1 },
-  { name: '棒棒糖', emoji: '🍭', level: '小额', price: 5 },
-  { name: '灯牌', emoji: '🏮', level: '小额', price: 10 },
-  { name: '跑车', emoji: '🏎️', level: '大额', price: 100 },
-  { name: '火箭', emoji: '🚀', level: '大额', price: 500 },
-  { name: '嘉年华', emoji: '🎆', level: '礼物级', price: 1000 }
+  { key: 'heart', name: '小心心', nameEn: 'Little Heart', emoji: '💗', level: '小额', price: 1 },
+  { key: 'lollipop', name: '棒棒糖', nameEn: 'Lollipop', emoji: '🍭', level: '小额', price: 5 },
+  { key: 'sign', name: '灯牌', nameEn: 'Fan Sign', emoji: '🏮', level: '小额', price: 10 },
+  { key: 'sportscar', name: '跑车', nameEn: 'Sports Car', emoji: '🏎️', level: '大额', price: 100 },
+  { key: 'rocket', name: '火箭', nameEn: 'Rocket', emoji: '🚀', level: '大额', price: 500 },
+  { key: 'carnival', name: '嘉年华', nameEn: 'Carnival', emoji: '🎆', level: '礼物级', price: 1000 }
 ]
 
-const ACTIVITIES = ['点歌', '换装', '换姿势', '聊天话题', 'ASMR', '抽奖', '投票', 'PK挑战', '下播']
+const ACTIVITIES: { key: string; zh: string; en: string }[] = [
+  { key: 'song', zh: '点歌', en: 'Request Song' },
+  { key: 'costume', zh: '换装', en: 'Outfit Change' },
+  { key: 'pose', zh: '换姿势', en: 'New Pose' },
+  { key: 'topic', zh: '聊天话题', en: 'Chat Topic' },
+  { key: 'asmr', zh: 'ASMR', en: 'ASMR' },
+  { key: 'lottery', zh: '抽奖', en: 'Lottery' },
+  { key: 'vote', zh: '投票', en: 'Vote' },
+  { key: 'pk', zh: 'PK挑战', en: 'PK Battle' },
+  { key: 'end', zh: '下播', en: 'End Stream' }
+]
 
 let idCounter = 0
 function nextId(prefix: string): string {
@@ -54,12 +67,12 @@ function nextId(prefix: string): string {
  * 每区含 emoji 图标、中文小标题（与引擎权威标签对齐）、以及取值字段。
  * 空值视为「未指定＝按参考图初始装扮」；absent 专值视为「已脱」，用删除线置灰。
  */
-const CLOTH_ZONES: { key: keyof ClothingState; label: string; emoji: string; fallback: string }[] = [
-  { key: 'head', label: '头颈区', emoji: '👒', fallback: '按参考图初始装扮' },
-  { key: 'upper', label: '上躯干区', emoji: '👚', fallback: '按参考图初始装扮' },
-  { key: 'lower', label: '下躯干区', emoji: '👗', fallback: '按参考图初始装扮' },
-  { key: 'legs', label: '腿足区', emoji: '🧦', fallback: '按参考图初始装扮' },
-  { key: 'note', label: '状态备注', emoji: '📝', fallback: '—' }
+const CLOTH_ZONES: { key: keyof ClothingState; emoji: string }[] = [
+  { key: 'head', emoji: '👒' },
+  { key: 'upper', emoji: '👚' },
+  { key: 'lower', emoji: '👗' },
+  { key: 'legs', emoji: '🧦' },
+  { key: 'note', emoji: '📝' }
 ]
 
 const ABSENT = 'absent'
@@ -82,7 +95,7 @@ export default function App(): React.JSX.Element {
   const [chatInput, setChatInput] = useState('')
   const [waitingForNext, setWaitingForNext] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [engineStatus, setEngineStatus] = useState('未连接')
+  const [engineStatus, setEngineStatus] = useState('')
   const [engineState, setEngineState] = useState('')
   const [profile, setProfile] = useState<AnchorProfile | null>(null)
   const [clothingState, setClothingState] = useState<ClothingState>(EMPTY_CLOTHING_STATE)
@@ -94,10 +107,17 @@ export default function App(): React.JSX.Element {
   const messageEndRef = useRef<HTMLDivElement | null>(null)
   const stageRef = useRef<HTMLDivElement | null>(null)
 
+  const lang: Lang = settings?.language === 'en' ? 'en' : 'zh'
+  const t = useCallback((key: string, vars?: Record<string, string | number>) => tr(lang, key, vars), [lang])
+
+  useEffect(() => {
+    document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN'
+  }, [lang])
+
   useEffect(() => {
     void window.api.getSettings().then((s) => {
       setSettings(s)
-      setEngineStatus(s.model ? `引擎：${s.model}` : '未配置 AI 引擎')
+      setEngineStatus(s.model ? t('status.engineModel', { model: s.model }) : t('status.engineNotConfigured'))
     })
     void window.api.getEngineState().then((r) => {
       setEngineState(r.state)
@@ -110,7 +130,7 @@ export default function App(): React.JSX.Element {
       }
     })
     void window.api.testEngine().then((r) => {
-      setEngineStatus(r.ok ? `引擎已连接：${r.message}` : `引擎未连接：${r.message}`)
+      setEngineStatus(r.message)
     })
     void window.api.getStreamState().then((payload) => {
       setVideos(payload.videos)
@@ -131,7 +151,7 @@ export default function App(): React.JSX.Element {
       offStatus()
       offConv()
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     if (!currentVideo && videos.length > 0) {
@@ -183,25 +203,25 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     const off = window.api.onFeedbackEvent((event) => {
       if (event.type === 'danmaku') {
-        const line = `${event.user || '观众'}：${event.text}`
+        const line = `${event.user || t('common.viewer')}：${event.text}`
         pushChat({ id: nextId('fb'), kind: 'danmaku', user: event.user, content: line, time: Date.now() })
         pushDanmaku(line)
       } else if (event.type === 'effect') {
-        const name = event.effect || '特效'
+        const name = event.effect || t('common.effect')
         pushChat({
           id: nextId('fx'),
           kind: 'gift',
           content: `✨ ${event.text || name}`,
           time: Date.now()
         })
-        setGiftBanner({ name, emoji: '✨', level: 'AI 特效' })
+        setGiftBanner({ name, emoji: '✨', level: t('stage.effectLevel') })
         setTimeout(() => setGiftBanner(null), 4500)
       } else if (event.type === 'system') {
         pushChat({ id: nextId('fb-sys'), kind: 'system', content: event.text, time: Date.now() })
       }
     })
     return off
-  }, [pushChat, pushDanmaku])
+  }, [pushChat, pushDanmaku, t])
 
   const interact = useCallback(
     async (raw: string): Promise<void> => {
@@ -211,13 +231,13 @@ export default function App(): React.JSX.Element {
         pushChat({
           id: nextId('sys'),
           kind: 'system',
-          content: '⚠️ 尚未开播，请先在右上角点击「🚀 开播」初始化主播角色卡',
+          content: `⚠️ ${t('status.notLiveYet')}`,
           time: Date.now()
         })
         return
       }
       // 本地回显观众输入
-      pushChat({ id: nextId('chat'), kind: 'danmaku', user: '我', content: `我：${text}`, time: Date.now() })
+      pushChat({ id: nextId('chat'), kind: 'danmaku', user: t('chat.me'), content: `${t('chat.me')}：${text}`, time: Date.now() })
       pushDanmaku(`${text}`)
       setChatInput('')
       // 必须捕获 invoke 的拒绝：主进程抛错时若不接住，界面就会毫无反应地静默失败
@@ -259,29 +279,35 @@ export default function App(): React.JSX.Element {
         }
       }
     },
-    [profile, pushChat, pushDanmaku]
+    [profile, pushChat, pushDanmaku, t]
   )
 
   const sendPendingInteraction = useCallback(
     (rawMessage: string) => {
       if (pendingGift) {
         const gift = pendingGift
-        const giftLine = `我送出「${gift.name}」（${gift.level}礼物）${rawMessage.trim() ? `｜留言：${rawMessage.trim()}` : ''}`
+        const giftName = lang === 'en' ? gift.nameEn : gift.name
+        const levelName = giftLevelName(gift.level, lang)
+        const note = rawMessage.trim() ? t('chat.giftNote', { msg: rawMessage.trim() }) : ''
+        const giftLine = t('chat.giftSentLine', { name: giftName, level: levelName, msg: note })
         pushChat({ id: nextId('gift'), kind: 'gift', content: giftLine, time: Date.now() })
-        pushDanmaku(`${gift.emoji} 我送出了 ${gift.name} ${gift.emoji}`)
-        setGiftBanner({ name: gift.name, emoji: gift.emoji, level: gift.level })
+        pushDanmaku(t('chat.giftDanmaku', { emoji: gift.emoji, name: giftName }))
+        setGiftBanner({ name: giftName, emoji: gift.emoji, level: levelName })
         setTimeout(() => setGiftBanner(null), 4500)
         setPendingGift(null)
         setChatInput('')
         // 送给 AI 引擎
         const message = rawMessage.trim()
-        const input = `【礼物】送出「${gift.name}」${message ? `，留言：${message}` : ''}`
+        const input =
+          lang === 'en'
+            ? `[Gift] Sent "${giftName}"${message ? `, note: ${message}` : ''}`
+            : `【礼物】送出「${gift.name}」${message ? `，留言：${message}` : ''}`
         void interact(`我 ${input}`)
         return
       }
       void interact(rawMessage)
     },
-    [pendingGift, interact, pushChat, pushDanmaku]
+    [pendingGift, interact, pushChat, pushDanmaku, lang, t]
   )
 
   const sendGift = useCallback((gift: GiftItem) => {
@@ -289,19 +315,20 @@ export default function App(): React.JSX.Element {
   }, [])
 
   const sendActivity = useCallback(
-    (activity: string) => {
-      const line = `我发起了【${activity}】`
+    (activity: { key: string; zh: string; en: string }) => {
+      const actName = lang === 'en' ? activity.en : activity.zh
+      const line = t('chat.activityLine', { activity: actName })
       pushChat({ id: nextId('act'), kind: 'activity', content: line, time: Date.now() })
-      pushDanmaku(`📢 我发起了【${activity}】`)
+      pushDanmaku(t('chat.activityDanmaku', { activity: actName }))
       setChatInput('')
       void interact(line)
     },
-    [interact, pushChat, pushDanmaku]
+    [interact, pushChat, pushDanmaku, lang, t]
   )
 
   const startProject = useCallback(async () => {
     setStarting(true)
-    setEngineStatus('正在生成主播角色卡…')
+    setEngineStatus(t('status.generating'))
     try {
       const result = await window.api.initEngine()
       setEngineStatus(result.message)
@@ -314,7 +341,7 @@ export default function App(): React.JSX.Element {
         pushChat({
           id: nextId('sys'),
           kind: 'system',
-          content: `🚀 开播成功！主播：${state.profile?.name || '虚拟主播'}，开始互动吧～`,
+          content: t('status.liveStart', { name: state.profile?.name || t('common.unknown') }),
           time: Date.now()
         })
       }
@@ -323,7 +350,7 @@ export default function App(): React.JSX.Element {
     } finally {
       setStarting(false)
     }
-  }, [pushChat])
+  }, [pushChat, t])
 
   const resetProject = useCallback(async () => {
     setProfile(null)
@@ -370,17 +397,17 @@ export default function App(): React.JSX.Element {
           {profile && <span className="anchor-name">🎤 {profile.name}</span>}
         </div>
         <div className="header-right">
-          <span className="online-count" title="在线人数">
+          <span className="online-count" title={t('header.onlineCount')}>
             👥 {onlineCount}
           </span>
           <button className="primary-btn small" onClick={() => (profile ? resetProject() : setProjectOpen(true))}>
-            {profile ? '🔁 重开' : '🚀 开播'}
+            {profile ? t('header.restart') : t('header.goLive')}
           </button>
           <span className="engine-status" title={engineStatus}>
             🔗 {engineStatus}
           </span>
           <button className="ghost-btn" onClick={() => setSettingsOpen(true)}>
-            ⚙️ 设置
+            {t('header.settings')}
           </button>
         </div>
       </header>
@@ -400,20 +427,20 @@ export default function App(): React.JSX.Element {
             ) : (
               <div className="empty-stage">
                 <div className="empty-icon">🛰️</div>
-                <div>等待直播片段…</div>
-                <div className="empty-hint">开播后 AI 生成的 seg_xxx.mp4 会自动出现在这里</div>
+                <div>{t('stage.waiting')}</div>
+                <div className="empty-hint">{t('stage.waitingHint')}</div>
               </div>
             )}
 
             <div className="stage-topbar">
               <div className="stage-topbar-left">
                 <span className="room-name">
-                  {profile ? `${profile.name} 的直播间` : 'AI 虚拟直播间'}
+                  {profile ? t('stage.roomName', { name: profile.name }) : t('stage.roomNameDefault')}
                 </span>
               </div>
               <div className="stage-topbar-right">
-                <span className="seg-name">{currentVideo || '未开播'}</span>
-                <button className="stage-btn" onClick={toggleFullscreen} title="全屏">
+                <span className="seg-name">{currentVideo || t('stage.notLive')}</span>
+                <button className="stage-btn" onClick={toggleFullscreen} title={t('stage.fullscreen')}>
                   ⛶
                 </button>
               </div>
@@ -429,22 +456,22 @@ export default function App(): React.JSX.Element {
               <div className="gift-banner">
                 <div className="gift-emoji">{giftBanner.emoji}</div>
                 <div className="gift-title">
-                  我送出 <strong>{giftBanner.name}</strong>
+                  {t('stage.giftSent')} <strong>{giftBanner.name}</strong>
                 </div>
-                <div className="gift-level">{giftBanner.level}礼物</div>
+                <div className="gift-level">{t('stage.giftLevel', { level: giftBanner.level })}</div>
               </div>
             )}
           </div>
 
           <div className="stage-info">
-            <span>📁 {settings?.streamsDir || '未选择目录'}</span>
-            <span>🎬 {videos.length} 个片段</span>
+            <span>{settings?.streamsDir ? t('stage.dir', { dir: settings.streamsDir }) : t('stage.noDir')}</span>
+            <span>{t('stage.segmentCount', { count: videos.length })}</span>
             {engineState && <span className="state-hint">🎭 {engineState.slice(0, 30)}…</span>}
             <button className="ghost-btn" onClick={() => setPlayNonce((n) => n + 1)} disabled={!currentVideo}>
-              🔁 重播当前
+              {t('stage.replay')}
             </button>
             <button className="ghost-btn" onClick={() => void window.api.openPath(settings?.streamsDir || '')}>
-              打开目录
+              {t('stage.openDir')}
             </button>
           </div>
         </section>
@@ -453,19 +480,19 @@ export default function App(): React.JSX.Element {
           <div className="tabs">
             {(
               [
-                ['chat', '弹幕'],
-                ['gifts', '礼物'],
-                ['activity', '活动'],
-                ['director', '导演'],
-                ['replay', '回放']
+                ['chat', 'tabs.chat'],
+                ['gifts', 'tabs.gifts'],
+                ['activity', 'tabs.activity'],
+                ['director', 'tabs.director'],
+                ['replay', 'tabs.replay']
               ] as [TabKey, string][]
-            ).map(([key, label]) => (
+            ).map(([key, labelKey]) => (
               <button
                 key={key}
                 className={activeTab === key ? 'tab active' : 'tab'}
                 onClick={() => setActiveTab(key)}
               >
-                {label}
+                {t(labelKey)}
               </button>
             ))}
           </div>
@@ -485,9 +512,9 @@ export default function App(): React.JSX.Element {
                   {pendingGift && (
                     <div className="pending-gift">
                       <span>{pendingGift.emoji}</span>
-                      <span>{pendingGift.name}</span>
+                      <span>{lang === 'en' ? pendingGift.nameEn : pendingGift.name}</span>
                       <button className="ghost-btn" onClick={() => setPendingGift(null)}>
-                        取消礼物
+                        {t('chat.cancelGift')}
                       </button>
                     </div>
                   )}
@@ -497,10 +524,10 @@ export default function App(): React.JSX.Element {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') sendPendingInteraction(chatInput)
                     }}
-                    placeholder={pendingGift ? '输入礼物留言，可留空，点发送一起送出…' : '发一条互动给主播…'}
+                    placeholder={pendingGift ? t('chat.giftPlaceholder') : t('chat.placeholder')}
                   />
                   <button className="send-btn" onClick={() => sendPendingInteraction(chatInput)}>
-                    {pendingGift ? '送出' : '发送'}
+                    {pendingGift ? t('chat.sendGift') : t('chat.send')}
                   </button>
                 </div>
               </div>
@@ -509,11 +536,11 @@ export default function App(): React.JSX.Element {
             {activeTab === 'gifts' && (
               <div className="gift-grid">
                 {GIFTS.map((gift) => (
-                  <button key={gift.name} className="gift-card" onClick={() => sendGift(gift)}>
+                  <button key={gift.key} className="gift-card" onClick={() => sendGift(gift)}>
                     <div className="gift-emoji-big">{gift.emoji}</div>
-                    <div className="gift-name">{gift.name}</div>
-                    <div className={`gift-level-tag ${gift.level}`}>{gift.level}</div>
-                    <div className="gift-price">{gift.price} 币</div>
+                    <div className="gift-name">{lang === 'en' ? gift.nameEn : gift.name}</div>
+                    <div className={`gift-level-tag ${gift.level}`}>{giftLevelName(gift.level, lang)}</div>
+                    <div className="gift-price">{t('gifts.coins', { price: gift.price })}</div>
                   </button>
                 ))}
               </div>
@@ -522,8 +549,8 @@ export default function App(): React.JSX.Element {
             {activeTab === 'activity' && (
               <div className="activity-grid">
                 {ACTIVITIES.map((activity) => (
-                  <button key={activity} className="activity-card" onClick={() => sendActivity(activity)}>
-                    {activity}
+                  <button key={activity.key} className="activity-card" onClick={() => sendActivity(activity)}>
+                    {lang === 'en' ? activity.en : activity.zh}
                   </button>
                 ))}
               </div>
@@ -532,37 +559,38 @@ export default function App(): React.JSX.Element {
             {activeTab === 'director' && (
               <div className="director-panel">
                 <div className="director-section">
-                  <div className="director-title">AI 引擎</div>
+                  <div className="director-title">{t('director.engine')}</div>
                   <div className="director-status">{engineStatus}</div>
                   <button className="ghost-btn" onClick={() => void window.api.testEngine().then((r) => setEngineStatus(r.message))}>
-                    测试引擎
+                    {t('director.testEngine')}
                   </button>
                 </div>
                 <div className="director-section">
-                  <div className="director-title">主播角色</div>
+                  <div className="director-title">{t('director.anchor')}</div>
                   <div className="director-status">
-                    {profile ? `🎤 ${profile.name}` : '未开播'}
+                    {profile ? `🎤 ${profile.name}` : t('director.notLive')}
                   </div>
                   {profile && (
                     <>
                       <div className="director-status dim">
-                        <div>人设：{profile.persona}</div>
-                        <div>场景：{profile.scene}</div>
+                        <div>{t('director.persona', { v: profile.persona })}</div>
+                        <div>{t('director.scene', { v: profile.scene })}</div>
                       </div>
                       <div className="cloth-state-bar">
                         {CLOTH_ZONES.map((z) => {
                           const raw = clothingState[z.key]
                           const absent = isAbsent(raw)
-                          const text = absent ? '已脱' : raw && raw.trim() ? raw.trim() : z.fallback
+                          const label = t(`cloth.${z.key}`)
+                          const text = absent ? t('cloth.removed') : raw && raw.trim() ? raw.trim() : t('cloth.fallback')
                           return (
                             <div
                               key={z.key}
                               className={`cloth-state-item${absent ? ' absent' : ''}`}
-                              title={absent ? `${z.label}：已脱下（本轮起保持裸露，不再穿回）` : text}
+                              title={absent ? t('cloth.absentTitle', { zone: label }) : text}
                             >
                               <span className="cloth-state-emoji">{z.emoji}</span>
                               <span className="cloth-state-body">
-                                <span className="cloth-state-label">{z.label}</span>
+                                <span className="cloth-state-label">{label}</span>
                                 <span className="cloth-state-value">{text}</span>
                               </span>
                             </div>
@@ -573,23 +601,23 @@ export default function App(): React.JSX.Element {
                   )}
                 </div>
                 <div className="director-section">
-                  <div className="director-title">当前状态</div>
+                  <div className="director-title">{t('director.state')}</div>
                   <div className="director-status dim">{engineState || '—'}</div>
                 </div>
                 <div className="director-section">
-                  <div className="director-title">AI 对话后台</div>
+                  <div className="director-title">{t('director.conversation')}</div>
                   <div className="conversation-list">
-                    {conversation.length === 0 && <div className="director-empty">暂无对话</div>}
+                    {conversation.length === 0 && <div className="director-empty">{t('director.noConversation')}</div>}
                     {conversation.map((c, i) => (
                       <div key={i} className={`conv-entry ${c.role === 'user' ? 'user' : 'assistant'}`}>
-                        <div className="conv-role">{c.role === 'user' ? '👤 我' : '🤖 AI'}</div>
+                        <div className="conv-role">{c.role === 'user' ? t('director.me') : t('director.ai')}</div>
                         <pre className="conv-content">{c.content}</pre>
                       </div>
                     ))}
                   </div>
                 </div>
                 <div className="director-section">
-                  <div className="director-title">直播片段</div>
+                  <div className="director-title">{t('director.segments')}</div>
                   <div className="director-list">
                     {videos.map((v, idx) => (
                       <div
@@ -605,12 +633,12 @@ export default function App(): React.JSX.Element {
                         <span className="director-size">{(v.size / 1024 / 1024).toFixed(1)} MB</span>
                       </div>
                     ))}
-                    {videos.length === 0 && <div className="director-empty">暂无片段</div>}
+                    {videos.length === 0 && <div className="director-empty">{t('director.noSegments')}</div>}
                   </div>
                 </div>
                 <div className="director-section">
                   <button className="ghost-btn" onClick={() => void window.api.refreshStream()}>
-                    刷新列表
+                    {t('director.refresh')}
                   </button>
                 </div>
               </div>
@@ -619,7 +647,7 @@ export default function App(): React.JSX.Element {
             {activeTab === 'replay' && (
               <div className="director-panel">
                 <div className="director-section">
-                  <div className="director-title">已生成视频 / 回放</div>
+                  <div className="director-title">{t('director.replayTitle')}</div>
                   <div className="director-list">
                     {videos.map((v, idx) => (
                       <div
@@ -636,12 +664,12 @@ export default function App(): React.JSX.Element {
                         <span className="play-icon">▶</span>
                       </div>
                     ))}
-                    {videos.length === 0 && <div className="director-empty">还没有生成视频</div>}
+                    {videos.length === 0 && <div className="director-empty">{t('director.noVideos')}</div>}
                   </div>
                 </div>
                 <div className="director-section">
                   <button className="ghost-btn" onClick={() => void window.api.refreshStream()}>
-                    刷新列表
+                    {t('director.refresh')}
                   </button>
                 </div>
               </div>
@@ -657,7 +685,7 @@ export default function App(): React.JSX.Element {
           onSave={async (next) => {
             const saved = await window.api.saveSettings(next)
             setSettings(saved)
-            setEngineStatus(saved.model ? `引擎：${saved.model}` : '未配置 AI 引擎')
+            setEngineStatus(saved.model ? t('status.engineModel', { model: saved.model }) : t('status.engineNotConfigured'))
             setSettingsOpen(false)
           }}
         />
@@ -689,6 +717,8 @@ function ProjectStartModal({
   onStart: () => Promise<void>
   onSaved: (next: AppSettings) => void
 }): React.JSX.Element {
+  const lang: Lang = settings.language === 'en' ? 'en' : 'zh'
+  const t = useCallback((key: string, vars?: Record<string, string | number>) => tr(lang, key, vars), [lang])
   const [draft, setDraft] = useState<AppSettings>({ ...settings })
   const [status, setStatus] = useState('')
 
@@ -716,7 +746,7 @@ function ProjectStartModal({
   }
 
   const start = async (): Promise<void> => {
-    setStatus('正在保存配置并初始化…')
+    setStatus(t('start.saving'))
     const saved = await window.api.saveSettings(draft)
     setDraft(saved)
     onSaved(saved)
@@ -727,28 +757,28 @@ function ProjectStartModal({
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal modal-large" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>🚀 开播配置</h2>
+          <h2>{t('start.title')}</h2>
           <button className="close-btn" onClick={onClose}>
             ×
           </button>
         </div>
 
         <div className="form-row">
-          <label>直播片段目录（AI 生成的 seg_xxx.mp4 会存到这里）</label>
+          <label>{t('start.streamsDir')}</label>
           <div className="input-with-btn">
             <input
               value={draft.streamsDir}
               onChange={(e) => setDraft((d) => ({ ...d, streamsDir: e.target.value }))}
-              placeholder="存放 seg_xxx.mp4 的目录"
+              placeholder={t('start.streamsDirPlaceholder')}
             />
             <button className="ghost-btn" onClick={() => void chooseDir()}>
-              浏览
+              {t('start.browse')}
             </button>
           </div>
         </div>
 
         <div className="form-row">
-          <label>参考信息模式</label>
+          <label>{t('start.refMode')}</label>
           <div>
             <label className="inline-radio">
               <input
@@ -756,7 +786,7 @@ function ProjectStartModal({
                 checked={draft.referenceMode === 'image'}
                 onChange={() => setDraft((d) => ({ ...d, referenceMode: 'image' }))}
               />
-              参考图（多模态模型可直接看）
+              {t('start.refImageMode')}
             </label>
             <label className="inline-radio">
               <input
@@ -764,49 +794,49 @@ function ProjectStartModal({
                 checked={draft.referenceMode === 'description'}
                 onChange={() => setDraft((d) => ({ ...d, referenceMode: 'description' }))}
               />
-              文字描述
+              {t('start.textMode')}
             </label>
           </div>
         </div>
 
         <div className="form-row">
-          <label>参考图文件（ComfyUI 生成使用）</label>
+          <label>{t('start.refFile')}</label>
           <div className="input-with-btn">
             <input
               value={draft.referenceImagePath}
               onChange={(e) => setDraft((d) => ({ ...d, referenceImagePath: e.target.value }))}
-              placeholder="选择参考图文件"
+              placeholder={t('start.chooseRefFile')}
             />
             <button className="ghost-btn" onClick={() => void chooseImage()}>
-              选择图片
+              {t('start.chooseImage')}
             </button>
           </div>
         </div>
 
         {draft.referenceMode === 'description' && (
           <div className="form-row">
-            <label>参考图文字描述（作为主播外貌依据）</label>
+            <label>{t('start.refDescription')}</label>
             <textarea
               value={draft.referenceDescription}
               onChange={(e) => setDraft((d) => ({ ...d, referenceDescription: e.target.value }))}
-              placeholder="例如：年轻女性，黑色长直发，白色汉服，双白色发带，手持白色长剑，背景为古代庭院…"
+              placeholder={t('start.refDescriptionPlaceholder')}
               rows={5}
             />
           </div>
         )}
 
         <div className="form-row">
-          <label>主播性格（留空或填 random 表示由 AI 自动生成）</label>
+          <label>{t('start.personality')}</label>
           <textarea
             value={draft.personality}
             onChange={(e) => setDraft((d) => ({ ...d, personality: e.target.value }))}
-            placeholder="例如：温柔治愈、慢热、话痨… 或留空/random"
+            placeholder={t('start.personalityPlaceholder')}
             rows={2}
           />
         </div>
 
         <div className="form-row">
-          <label>ComfyUI 地址</label>
+          <label>{t('start.comfyUrl')}</label>
           <input
             value={draft.comfyUrl}
             onChange={(e) => setDraft((d) => ({ ...d, comfyUrl: e.target.value }))}
@@ -815,30 +845,30 @@ function ProjectStartModal({
         </div>
 
         <div className="form-row">
-          <label>ComfyUI 工作流 JSON</label>
+          <label>{t('start.workflow')}</label>
           <div className="input-with-btn">
             <input
               value={draft.workflowPath}
               onChange={(e) => setDraft((d) => ({ ...d, workflowPath: e.target.value }))}
-              placeholder="选择本地 workflow.json"
+              placeholder={t('start.workflowPlaceholder')}
             />
             <button className="ghost-btn" onClick={() => void chooseWorkflow()}>
-              选择工作流
+              {t('start.chooseWorkflow')}
             </button>
           </div>
         </div>
 
         <div className="form-row form-grid">
           <div>
-            <label>清晰度 / 分辨率</label>
+            <label>{t('start.resolution')}</label>
             <input
               value={draft.resolution}
               onChange={(e) => setDraft((d) => ({ ...d, resolution: e.target.value }))}
-              placeholder="例如 0.4MP 或 1280x720"
+              placeholder={t('start.resolutionPlaceholder')}
             />
           </div>
           <div>
-            <label>生成步数</label>
+            <label>{t('start.steps')}</label>
             <input
               type="number"
               value={draft.steps}
@@ -847,7 +877,7 @@ function ProjectStartModal({
             />
           </div>
           <div>
-            <label>每段时长（秒）</label>
+            <label>{t('start.duration')}</label>
             <input
               type="number"
               value={draft.durationSec}
@@ -858,11 +888,11 @@ function ProjectStartModal({
         </div>
 
         <div className="form-row">
-          <label>额外自定义要求</label>
+          <label>{t('start.extra')}</label>
           <textarea
             value={draft.extraRequirements}
             onChange={(e) => setDraft((d) => ({ ...d, extraRequirements: e.target.value }))}
-            placeholder="适配工作流的补充要求，例如：镜头固定、夜晚场景、无字幕等"
+            placeholder={t('start.extraPlaceholder')}
             rows={3}
           />
         </div>
@@ -871,13 +901,13 @@ function ProjectStartModal({
 
         <div className="modal-actions">
           <button className="ghost-btn" onClick={() => void testComfy()}>
-            🔌 测试 ComfyUI
+            {t('start.testComfy')}
           </button>
           <button className="ghost-btn" onClick={onClose}>
-            取消
+            {t('common.cancel')}
           </button>
           <button className="primary-btn" disabled={starting} onClick={() => void start()}>
-            {starting ? '正在初始化…' : '▶ 开始直播'}
+            {starting ? t('start.initializing') : t('start.goLive')}
           </button>
         </div>
       </div>
@@ -894,6 +924,8 @@ function SettingsModal({
   onClose: () => void
   onSave: (next: AppSettings) => Promise<void>
 }): React.JSX.Element {
+  const lang: Lang = settings.language === 'en' ? 'en' : 'zh'
+  const t = useCallback((key: string, vars?: Record<string, string | number>) => tr(lang, key, vars), [lang])
   const [draft, setDraft] = useState<AppSettings>({ ...settings })
   const [status, setStatus] = useState('')
   const [models, setModels] = useState<Array<{ id: string; name?: string }>>([])
@@ -913,7 +945,7 @@ function SettingsModal({
   const loadModels = async (): Promise<void> => {
     const saved = await window.api.saveSettings(draft)
     setDraft(saved)
-    setStatus('正在获取模型列表…')
+    setStatus(t('settings.fetchingModels'))
     const result = await window.api.listEngineModels()
     if (result.ok && result.models) {
       setModels(result.models)
@@ -934,30 +966,52 @@ function SettingsModal({
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal modal-large" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>设置</h2>
+          <h2>{t('settings.title')}</h2>
           <button className="close-btn" onClick={onClose}>
             ×
           </button>
         </div>
 
         <div className="form-row">
-          <label>片段目录</label>
+          <label>{t('settings.streamsDir')}</label>
           <div className="input-with-btn">
             <input
               value={draft.streamsDir}
               onChange={(e) => setDraft((d) => ({ ...d, streamsDir: e.target.value }))}
-              placeholder="例如 D:\桌面\Projects\streams"
+              placeholder={t('settings.streamsDirPlaceholder')}
             />
             <button className="ghost-btn" onClick={() => void chooseDir()}>
-              浏览
+              {t('start.browse')}
             </button>
           </div>
         </div>
 
-        <div className="settings-section-title">🤖 内置 AI 引擎（OpenAI 兼容 API）</div>
+        <div className="form-row">
+          <label>{t('settings.language')}</label>
+          <div>
+            <label className="inline-radio">
+              <input
+                type="radio"
+                checked={draft.language === 'zh'}
+                onChange={() => setDraft((d) => ({ ...d, language: 'zh' }))}
+              />
+              中文
+            </label>
+            <label className="inline-radio">
+              <input
+                type="radio"
+                checked={draft.language === 'en'}
+                onChange={() => setDraft((d) => ({ ...d, language: 'en' }))}
+              />
+              English
+            </label>
+          </div>
+        </div>
+
+        <div className="settings-section-title">{t('settings.engineSection')}</div>
 
         <div className="form-row">
-          <label>API 地址（base_url，如 https://api.openai.com/v1 或 http://localhost:11434/v1）</label>
+          <label>{t('settings.apiBaseUrl')}</label>
           <input
             value={draft.apiBaseUrl}
             onChange={(e) => setDraft((d) => ({ ...d, apiBaseUrl: e.target.value }))}
@@ -966,7 +1020,7 @@ function SettingsModal({
         </div>
 
         <div className="form-row">
-          <label>API Key（本地模型可留空）</label>
+          <label>{t('settings.apiKey')}</label>
           <input
             type="password"
             value={draft.apiKey}
@@ -976,15 +1030,15 @@ function SettingsModal({
         </div>
 
         <div className="form-row">
-          <label>模型名称（可点击「获取模型」拉取列表选择，也可手动输入）</label>
+          <label>{t('settings.model')}</label>
           <div className="input-with-btn">
             <input
               value={draft.model}
               onChange={(e) => setDraft((d) => ({ ...d, model: e.target.value }))}
-              placeholder="如 gpt-4o / deepseek-chat / llama3 等"
+              placeholder={t('settings.modelPlaceholder')}
             />
             <button className="ghost-btn" onClick={() => void loadModels()}>
-              📋 获取模型
+              {t('settings.fetchModels')}
             </button>
           </div>
           {models.length > 0 && (
@@ -993,7 +1047,7 @@ function SettingsModal({
               value={draft.model}
               onChange={(e) => setDraft((d) => ({ ...d, model: e.target.value }))}
             >
-              <option value="">选择模型…</option>
+              <option value="">{t('settings.chooseModel')}</option>
               {models.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name || m.id}
@@ -1005,16 +1059,16 @@ function SettingsModal({
 
         <div className="modal-actions">
           <button className="ghost-btn" onClick={() => void testEngine()}>
-            🔌 测试 AI 引擎
+            {t('settings.testEngine')}
           </button>
         </div>
 
         <div className="settings-section-title" style={{ marginTop: 24 }}>
-          🎬 ComfyUI 生成
+          {t('settings.comfySection')}
         </div>
 
         <div className="form-row">
-          <label>ComfyUI 地址</label>
+          <label>{t('settings.comfyUrl')}</label>
           <input
             value={draft.comfyUrl}
             onChange={(e) => setDraft((d) => ({ ...d, comfyUrl: e.target.value }))}
@@ -1023,7 +1077,7 @@ function SettingsModal({
         </div>
         <div className="modal-actions">
           <button className="ghost-btn" onClick={() => void testComfy()}>
-            🔌 测试 ComfyUI
+            {t('settings.testComfy')}
           </button>
         </div>
 
@@ -1031,10 +1085,10 @@ function SettingsModal({
 
         <div className="modal-actions">
           <button className="ghost-btn" onClick={onClose}>
-            取消
+            {t('common.cancel')}
           </button>
           <button className="primary-btn" onClick={() => void onSave(draft)}>
-            保存
+            {t('settings.save')}
           </button>
         </div>
       </div>

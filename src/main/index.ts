@@ -6,6 +6,7 @@ import { AiEngine } from './aiEngine'
 import { ComfyExecutor } from './comfyExecutor'
 import { FeedbackWatcher } from './feedbackWatcher'
 import type { AppSettings, FeedbackEventPayload, StreamEventPayload } from '../shared/types'
+import { tr, type Lang } from '../shared/i18n'
 
 let mainWindow: BrowserWindow | null = null
 let settingsStore: SettingsStore | null = null
@@ -13,6 +14,16 @@ let streamServer: StreamServer | null = null
 let aiEngine: AiEngine | null = null
 let comfyExecutor: ComfyExecutor | null = null
 let feedbackWatcher: FeedbackWatcher | null = null
+
+/** 当前界面语言（跟随设置） */
+function lang(): Lang {
+  return settingsStore?.get().language === 'en' ? 'en' : 'zh'
+}
+
+/** 当前语言下的用户可见消息 */
+function t(key: string, vars?: Record<string, string | number>): string {
+  return tr(lang(), key, vars)
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -80,23 +91,23 @@ function registerIpc(): void {
   ipcMain.handle('settings:choose-dir', async () => {
     const result = await dialog.showOpenDialog(mainWindow!, {
       properties: ['openDirectory'],
-      title: '选择直播片段目录'
+      title: t('dialog.chooseDir')
     })
     return result.canceled ? null : result.filePaths[0]
   })
   ipcMain.handle('project:choose-reference-image', async () => {
     const result = await dialog.showOpenDialog(mainWindow!, {
       properties: ['openFile'],
-      title: '选择主播参考图',
-      filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }]
+      title: t('dialog.chooseRefImage'),
+      filters: [{ name: t('dialog.images'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }]
     })
     return result.canceled ? null : result.filePaths[0]
   })
   ipcMain.handle('project:choose-workflow', async () => {
     const result = await dialog.showOpenDialog(mainWindow!, {
       properties: ['openFile'],
-      title: '选择 ComfyUI 工作流 JSON',
-      filters: [{ name: 'ComfyUI 工作流', extensions: ['json'] }]
+      title: t('dialog.chooseWorkflow'),
+      filters: [{ name: t('dialog.workflow'), extensions: ['json'] }]
     })
     return result.canceled ? null : result.filePaths[0]
   })
@@ -112,7 +123,7 @@ function registerIpc(): void {
   ipcMain.handle('engine:test', async () => {
     const settings = settingsStore!.get()
     if (!settings.apiBaseUrl || !settings.model) {
-      return { ok: false, message: '未配置 AI 引擎的 API 地址/模型' }
+      return { ok: false, message: t('engine.noApiConfig') }
     }
     try {
       const controller = new AbortController()
@@ -122,12 +133,12 @@ function registerIpc(): void {
         signal: controller.signal
       })
       clearTimeout(timer)
-      if (!res.ok) return { ok: false, message: `AI 引擎 HTTP ${res.status}` }
-      return { ok: true, message: `AI 引擎已连接：${settings.model}` }
+      if (!res.ok) return { ok: false, message: t('engine.http', { status: res.status }) }
+      return { ok: true, message: t('engine.connected', { model: settings.model }) }
     } catch (error: any) {
       return {
         ok: false,
-        message: error?.name === 'AbortError' ? 'AI 引擎请求超时' : `无法连接 AI 引擎：${String(error?.message || error)}`
+        message: error?.name === 'AbortError' ? t('engine.timeout') : t('engine.connectFail', { msg: String(error?.message || error) })
       }
     }
   })
@@ -138,17 +149,17 @@ function registerIpc(): void {
     return { state: aiEngine!.getLastState(), profile: aiEngine!.getProfile(), clothingState: aiEngine!.getClothingState() }
   })
   ipcMain.handle('engine:init', async () => {
-    sendStatus('正在生成主播角色卡…')
+    sendStatus(t('status.generating'))
     const result = await aiEngine!.initProfile()
     return result
   })
   ipcMain.handle('engine:interact', async (_event, text: string) => {
     if (!aiEngine!.hasProfile()) {
-      return { ok: false, message: '尚未开播，请先初始化主播角色卡' }
+      return { ok: false, message: t('engine.noProfile') }
     }
     const input = String(text || '').trim()
-    if (!input) return { ok: false, message: '输入为空' }
-    sendStatus('AI 导演生成中…')
+    if (!input) return { ok: false, message: t('engine.emptyInput') }
+    sendStatus(t('engine.directing'))
     sendConversation({ role: 'user', content: input, time: Date.now() })
     try {
       const result = await aiEngine!.handleInteraction(input)
@@ -159,7 +170,7 @@ function registerIpc(): void {
       if (result.ok && result.output) {
         const out = result.output
         // 回显主播台词到反馈流
-        await writeSelfFeedback({ type: 'system', text: `主播：${out.line}`, timestamp: Date.now() })
+        await writeSelfFeedback({ type: 'system', text: t('chat.streamerPrefix', { line: out.line }), timestamp: Date.now() })
         // 弹幕回显
         for (const d of out.danmaku) {
           await writeSelfFeedback({
@@ -181,7 +192,7 @@ function registerIpc(): void {
 
         // 尝试生成视频
         if (out.videoPrompt) {
-          sendStatus('正在提交 ComfyUI 生成视频…')
+          sendStatus(t('engine.submitComfy'))
           const settings = settingsStore!.get()
           const gen = await comfyExecutor!.generate(out.videoPrompt, {
             referenceImagePath: settings.referenceImagePath
@@ -190,23 +201,23 @@ function registerIpc(): void {
           await writeSelfFeedback({ type: 'system', text: gen.message, timestamp: Date.now() })
         } else {
           // 没有视频提示词也要给用户明确反馈，禁止静默成功
-          sendStatus('回合完成（本回合未提交视频生成）')
+          sendStatus(t('engine.turnDone'))
         }
       } else if (!result.ok) {
-        sendStatus(`AI 导演出错：${result.message}`)
+        sendStatus(t('engine.error', { msg: result.message }))
       }
       return result
     } catch (error: any) {
       // 任何异常都必须转成可见的错误结果，不能让渲染层拿到 rejected promise 静默失败
       const msg = String(error?.message || error)
-      sendStatus(`AI 导演出错：${msg}`)
+      sendStatus(t('engine.error', { msg }))
       return { ok: false, message: msg }
     }
   })
   ipcMain.handle('engine:reset', async () => {
     await aiEngine!.reset()
     comfyExecutor!.reset()
-    return { ok: true, message: '已重置直播会话' }
+    return { ok: true, message: t('engine.reset') }
   })
   ipcMain.handle('engine:list-models', async () => {
     return aiEngine!.listModels()
@@ -216,15 +227,15 @@ function registerIpc(): void {
   })
   ipcMain.handle('comfy:test', async () => {
     const settings = settingsStore!.get()
-    if (!settings.comfyUrl) return { ok: false, message: '未配置 ComfyUI 地址' }
+    if (!settings.comfyUrl) return { ok: false, message: t('engine.noComfyUrl') }
     try {
       const response = await fetch(settings.comfyUrl.replace(/\/+$/, '') + '/system_stats', {
         signal: AbortSignal.timeout(5000)
       })
-      if (!response.ok) return { ok: false, message: `ComfyUI 返回 HTTP ${response.status}` }
-      return { ok: true, message: 'ComfyUI 已连接' }
+      if (!response.ok) return { ok: false, message: t('engine.comfyHttp', { status: response.status }) }
+      return { ok: true, message: t('engine.comfyConnected') }
     } catch (error: any) {
-      return { ok: false, message: `无法连接 ComfyUI: ${String(error?.message || error)}` }
+      return { ok: false, message: t('engine.comfyConnectFail', { msg: String(error?.message || error) }) }
     }
   })
   ipcMain.handle('app:open-path', async (_event, target: string) => {

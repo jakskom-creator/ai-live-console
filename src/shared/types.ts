@@ -1,3 +1,5 @@
+import type { Lang } from './i18n'
+
 export interface AppSettings {
   streamsDir: string
   feedbackDir: string
@@ -7,6 +9,8 @@ export interface AppSettings {
   referenceDescription: string
   personality: string
   extraRequirements: string
+  /** 界面语言（默认中文；英文模式下引擎内容语言也跟随英文） */
+  language: Lang
   // OpenAI 兼容 API（内置 AI 引擎）
   apiBaseUrl: string
   apiKey: string

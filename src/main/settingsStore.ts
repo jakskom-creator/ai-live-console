@@ -12,6 +12,8 @@ const DEFAULTS: AppSettings = {
   referenceDescription: '',
   personality: '',
   extraRequirements: '',
+  // 界面语言（默认中文）
+  language: 'zh',
   // OpenAI 兼容 API
   apiBaseUrl: 'https://api.openai.com/v1',
   apiKey: '',

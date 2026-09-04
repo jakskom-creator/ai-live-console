@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs'
 import type { AppSettings, ClothingState, DirectorTurnOutput, EngineResult } from '../shared/types'
 import { EMPTY_CLOTHING_STATE } from '../shared/types'
 import { buildSystemPrompt } from './liveDirectorSkill'
+import { tr, type Lang } from '../shared/i18n'
 
 /**
  * 内置 AI 直播导演引擎。
@@ -17,6 +18,16 @@ export class AiEngine {
   private clothingState: ClothingState = { ...EMPTY_CLOTHING_STATE }
 
   constructor(private readonly getSettings: () => AppSettings) {}
+
+  /** 当前界面语言（跟随设置） */
+  private lang(): Lang {
+    return this.getSettings().language === 'en' ? 'en' : 'zh'
+  }
+
+  /** 当前语言下的用户可见消息 */
+  private t(key: string, vars?: Record<string, string | number>): string {
+    return tr(this.lang(), key, vars)
+  }
 
   getProfile() {
     return this.profile
@@ -34,7 +45,7 @@ export class AiEngine {
   async reset(): Promise<void> {
     this.profile = null
     this.history = []
-    this.lastState = '开场，坐在摄像头前准备开始直播'
+    this.lastState = this.lang() === 'en' ? 'Opening, sitting in front of the camera, ready to start streaming' : '开场，坐在摄像头前准备开始直播'
     this.clothingState = { ...EMPTY_CLOTHING_STATE }
   }
 
@@ -43,19 +54,25 @@ export class AiEngine {
    */
   async initProfile(): Promise<EngineResult> {
     const settings = this.getSettings()
+    const en = this.lang() === 'en'
     const appearance = await this.buildAppearanceText(settings)
-    const personalityDefault = '请随机生成一个自然、有直播感的性格'
+    const personalityDefault = en
+      ? 'Please generate a natural, engaging streamer personality at random'
+      : '请随机生成一个自然、有直播感的性格'
+    const langLine = en
+      ? 'Language: English — all profile fields must be written in English.'
+      : '内容模式：全年龄通用'
     const prompt = `这是本次虚拟直播的开播初始化。请基于以下主播外貌信息，生成一句主播角色设定（不要任何格式符号，直接一句话）：
 外观：${appearance}
 性格：${settings.personality || personalityDefault}
-内容模式：全年龄通用
+${langLine}
 额外要求：${settings.extraRequirements || '无'}
-请输出格式：主播名：xxx；外貌：xxx；直播间场景：xxx；人设：xxx；说话风格：xxx`
+请输出格式：主播名：xxx；外貌：xxx；直播间场景：xxx；人设：xxx；说话风格：xxx${en ? '（全部用英文输出）' : ''}`
     const text = await this.chatOnce(prompt)
-    if (!text) return { ok: false, message: 'AI 引擎未能生成主播角色卡' }
+    if (!text) return { ok: false, message: this.t('engine.profileFail') }
     this.profile = this.parseProfile(text)
-    this.lastState = '开场，坐在摄像头前准备开始直播'
-    return { ok: true, message: `主播角色卡已生成：${this.profile.name}` }
+    this.lastState = en ? 'Opening, sitting in front of the camera, ready to start streaming' : '开场，坐在摄像头前准备开始直播'
+    return { ok: true, message: this.t('engine.profileReady', { name: this.profile.name }) }
   }
 
   /**
@@ -74,7 +91,7 @@ export class AiEngine {
     if (!response || !response.trim()) {
       return {
         ok: false,
-        message: 'AI 引擎返回了空回复（可能触发内容过滤或模型过载），请稍后重试'
+        message: this.t('engine.emptyReply')
       }
     }
     this.history.push({ role: 'user', content: userInput })
@@ -84,7 +101,7 @@ export class AiEngine {
     this.lastState = output.nextState || this.lastState
     // 主播状态系统：合并 LLM 本回合更新的五区衣物/身体状态（空字段保留上一回合值）
     this.clothingState = this.mergeClothingState(this.clothingState, output.clothingState)
-    return { ok: true, message: output.system || '已生成', output, rawOutput: response }
+    return { ok: true, message: output.system || this.t('engine.turnOk'), output, rawOutput: response }
   }
 
   /** 合并 AI 输出的衣物状态：仅当字段非空时才覆盖，避免 AI 漏填导致状态被清空 */
@@ -113,7 +130,7 @@ export class AiEngine {
    */
   async listModels(): Promise<EngineResult & { models?: Array<{ id: string; name?: string }> }> {
     const settings = this.getSettings()
-    if (!settings.apiBaseUrl) return { ok: false, message: '未配置 AI 引擎 API 地址' }
+    if (!settings.apiBaseUrl) return { ok: false, message: this.t('engine.noApiBase') }
     try {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 10000)
@@ -123,42 +140,48 @@ export class AiEngine {
       })
       clearTimeout(timer)
       if (!res.ok) {
-        return { ok: false, message: `获取模型列表失败：HTTP ${res.status}` }
+        return { ok: false, message: this.t('engine.modelsFail', { status: res.status }) }
       }
       const json: any = await res.json().catch(() => ({}))
       const models = Array.isArray(json?.data)
         ? json.data.map((m: any) => ({ id: String(m?.id || ''), name: String(m?.id || '') })).filter((m: any) => m.id)
         : []
-      return { ok: true, message: `发现 ${models.length} 个模型`, models }
+      return { ok: true, message: this.t('engine.modelsOk', { count: models.length }), models }
     } catch (error: any) {
       return {
         ok: false,
-        message: error?.name === 'AbortError' ? '获取模型列表超时' : `获取模型列表失败：${String(error?.message || error)}`
+        message:
+          error?.name === 'AbortError'
+            ? this.t('engine.modelsTimeout')
+            : this.t('engine.modelsFailMsg', { msg: String(error?.message || error) })
       }
     }
   }
 
   private async buildAppearanceText(settings: AppSettings): Promise<string> {
+    const en = this.lang() === 'en'
     if (settings.referenceMode === 'description') {
-      return settings.referenceDescription || '（未提供文字描述）'
+      return settings.referenceDescription || (en ? '(no text description provided)' : '（未提供文字描述）')
     }
     // 多模态模式但引擎只能看文本：优先尝试把参考图作为 base64 附件发送（取决于模型）
     // 为了兼容纯文本模型，这里提供占位描述并提示引擎，若模型支持多模态可后续扩展。
     if (settings.referenceImagePath) {
       try {
         const buf = await fs.readFile(settings.referenceImagePath)
-        return `参考图已提供（文件名：${settings.referenceImagePath.split(/[\\/]/).pop()}，大小 ${buf.length} 字节）。若本模型支持图片，可直接分析该图；否则请基于文件名和常识推断主播外观。`
+        return en
+          ? `A reference image is provided (file: ${settings.referenceImagePath.split(/[\\/]/).pop()}, size ${buf.length} bytes). If this model supports images, analyze it directly; otherwise infer the streamer's appearance from the file name and common sense.`
+          : `参考图已提供（文件名：${settings.referenceImagePath.split(/[\\/]/).pop()}，大小 ${buf.length} 字节）。若本模型支持图片，可直接分析该图；否则请基于文件名和常识推断主播外观。`
       } catch {
-        return '（参考图文件读取失败）'
+        return en ? '(failed to read the reference image file)' : '（参考图文件读取失败）'
       }
     }
-    return '（未提供参考图）'
+    return en ? '(no reference image provided)' : '（未提供参考图）'
   }
 
   private async chatOnce(systemAndUser: string): Promise<string> {
     const settings = this.getSettings()
     if (!settings.apiBaseUrl || !settings.model) {
-      throw new Error('未配置 AI 引擎的 API 地址或模型')
+      throw new Error(this.t('engine.noApiConfig'))
     }
     const messages: Array<{ role: string; content: string }> = [
       { role: 'system', content: this.buildContextualSystemPrompt() },
@@ -192,15 +215,17 @@ export class AiEngine {
       const content = json?.choices?.[0]?.message?.content
       return typeof content === 'string' ? content : ''
     } catch (error: any) {
-      if (error?.name === 'AbortError') throw new Error('AI 引擎请求超时（180 秒无响应，请检查 API 服务或稍后重试）')
-      throw new Error(`AI 引擎调用失败：${String(error?.message || error)}`)
+      if (error?.name === 'AbortError') throw new Error(this.t('engine.timeout180'))
+      throw new Error(this.t('engine.callFail', { msg: String(error?.message || error) }))
     } finally {
       clearTimeout(timer)
     }
   }
 
   private formatUserTurn(input: string): string {
-    return `【观众互动】${input}\n\n请按系统指令输出本回合的 JSON 结构化结果。`
+    return this.lang() === 'en'
+      ? `[Viewer Interaction] ${input}\n\nOutput this turn's structured JSON result following the system instructions.`
+      : `【观众互动】${input}\n\n请按系统指令输出本回合的 JSON 结构化结果。`
   }
 
   /**
@@ -209,48 +234,64 @@ export class AiEngine {
    */
   private buildContextualSystemPrompt(): string {
     const base = buildSystemPrompt()
+    const en = this.lang() === 'en'
     const p = this.profile
     if (!p) return base
     const parts = [
       base,
       '',
-      '## 当前主播角色卡（每条视频提示词必须严格遵守，禁止偏离）',
-      `主播名：${p.name || '（未命名）'}`
+      en ? '## Current Streamer Profile (must be strictly followed in every video prompt)' : '## 当前主播角色卡（每条视频提示词必须严格遵守，禁止偏离）',
+      en ? `Streamer name: ${p.name || '(unnamed)'}` : `主播名：${p.name || '（未命名）'}`
     ]
-    if (p.appearance) parts.push(`外貌：${p.appearance}`)
-    if (p.persona) parts.push(`人设：${p.persona}`)
-    if (p.scene) parts.push(`直播间场景：${p.scene}`)
+    if (p.appearance) parts.push(en ? `Appearance: ${p.appearance}` : `外貌：${p.appearance}`)
+    if (p.persona) parts.push(en ? `Persona: ${p.persona}` : `人设：${p.persona}`)
+    if (p.scene) parts.push(en ? `Live room scene: ${p.scene}` : `直播间场景：${p.scene}`)
     parts.push(
-      '在 videoPrompt 的 subject_definitions / detailed_description 中，必须始终以这段角色卡描述该主播的外貌、服饰、发型、身材与直播间布景，保持连续一致，不得换成无关人物。'
+      en
+        ? 'In the subject_definitions / detailed_description of every videoPrompt, you must always describe this streamer with this profile (appearance, clothing, hairstyle, figure, and room decor), keeping everything consistent — never substitute an unrelated person.'
+        : '在 videoPrompt 的 subject_definitions / detailed_description 中，必须始终以这段角色卡描述该主播的外貌、服饰、发型、身材与直播间布景，保持连续一致，不得换成无关人物。'
     )
-    parts.push('', '## 主播状态系统（权威参考 · 必须严格遵守，防衣物回穿）')
+    parts.push('', en ? '## Streamer State System (authoritative reference · must strictly follow · prevent clothing reappearing)' : '## 主播状态系统（权威参考 · 必须严格遵守，防衣物回穿）')
     parts.push(
-      '以下为主播当前五区衣物/身体状态，由状态系统维护。每段 videoPrompt 的 subject_definitions 中' +
-        '「当前实际穿着」必须逐字采用下列各区状态，禁止回到参考图原装、禁止回到历史旧状态、' +
-        '禁止凭空增减衣物。'
+      en
+        ? 'The five clothing/body zones below are maintained by the state system. In each videoPrompt\'s subject_definitions, the "current actual outfit" must use the zone states below verbatim — do not revert to the reference image\'s original outfit, do not return to old historical states, and do not add or remove clothing arbitrarily.'
+        : '以下为主播当前五区衣物/身体状态，由状态系统维护。每段 videoPrompt 的 subject_definitions 中' +
+          '「当前实际穿着」必须逐字采用下列各区状态，禁止回到参考图原装、禁止回到历史旧状态、' +
+          '禁止凭空增减衣物。'
     )
-    parts.push(`- 头颈区：${this.clothingState.head || '（初始装扮，以参考图/外貌描述为准）'}`)
-    parts.push(`- 上躯干区：${this.clothingState.upper || '（初始装扮，以参考图/外貌描述为准）'}`)
-    parts.push(`- 下躯干区：${this.clothingState.lower || '（初始装扮，以参考图/外貌描述为准）'}`)
-    parts.push(`- 腿足区：${this.clothingState.legs || '（初始装扮，以参考图/外貌描述为准）'}`)
-    parts.push(`- 状态备注：${this.clothingState.note || '（无）'}`)
+    const initial = en ? '(initial outfit, per reference image / appearance description)' : '（初始装扮，以参考图/外貌描述为准）'
+    const none = en ? '(none)' : '（无）'
+    parts.push(`- ${en ? 'Head & neck' : '头颈区'}：${this.clothingState.head || initial}`)
+    parts.push(`- ${en ? 'Upper body' : '上躯干区'}：${this.clothingState.upper || initial}`)
+    parts.push(`- ${en ? 'Lower body' : '下躯干区'}：${this.clothingState.lower || initial}`)
+    parts.push(`- ${en ? 'Legs & feet' : '腿足区'}：${this.clothingState.legs || initial}`)
+    parts.push(`- ${en ? 'Note' : '状态备注'}：${this.clothingState.note || none}`)
     parts.push(
-      '规则：已标记为「已脱/absent」的衣物绝对禁止在后续任何段落复现；本段结束时若衣物/身体状态' +
-        '发生变化，必须在输出的 clothingState 字段中完整更新五区（本回合没有变化也要原样回填当前状态）。'
+      en
+        ? 'Rules: clothing marked "removed/absent" must NEVER reappear in any later segment; when this segment ends, if the clothing/body state changed, you must fully update all five zones in the clothingState output (even if unchanged, fill back the current state verbatim).'
+        : '规则：已标记为「已脱/absent」的衣物绝对禁止在后续任何段落复现；本段结束时若衣物/身体状态' +
+          '发生变化，必须在输出的 clothingState 字段中完整更新五区（本回合没有变化也要原样回填当前状态）。'
     )
+    if (en) {
+      parts.push('', '## Language', 'All streamer lines, viewer danmaku, nextState and clothingState values must be written in English.')
+    }
     return parts.join('\n')
   }
 
   private parseProfile(text: string): { name: string; persona: string; appearance: string; scene: string } {
-    const pick = (key: string): string => {
-      const m = new RegExp(`${key}[:：]\\s*([^；;。]+)`).exec(text)
-      return m ? m[1].trim() : ''
+    const en = this.lang() === 'en'
+    const pick = (keys: string[]): string => {
+      for (const key of keys) {
+        const m = new RegExp(`${key}[:：]\\s*([^；;。]+)`).exec(text)
+        if (m) return m[1].trim()
+      }
+      return ''
     }
     return {
-      name: pick('主播名') || '虚拟主播',
-      persona: pick('人设') || '自然聊天型',
-      appearance: pick('外貌') || '',
-      scene: pick('直播间场景') || '温馨直播间'
+      name: pick(en ? ['Streamer name', 'Name'] : ['主播名']) || (en ? 'Virtual Streamer' : '虚拟主播'),
+      persona: pick(en ? ['Persona', 'Personality'] : ['人设']) || (en ? 'Natural chat style' : '自然聊天型'),
+      appearance: pick(en ? ['Appearance'] : ['外貌']) || '',
+      scene: pick(en ? ['Live room scene', 'Scene'] : ['直播间场景']) || (en ? 'Cozy live room' : '温馨直播间')
     }
   }
 
@@ -270,12 +311,12 @@ export class AiEngine {
         videoPrompt: raw.trim(),
         nextState: this.lastState,
         clothingState: { ...this.clothingState },
-        system: '模型未返回结构化 JSON，已降级为纯文本'
+        system: this.t('engine.degraded')
       }
     }
     const danmaku = Array.isArray(obj?.danmaku)
       ? obj.danmaku.map((d: any) => ({
-          user: String(d?.user || '观众'),
+          user: String(d?.user || this.t('common.viewer')),
           text: String(d?.text || '')
         }))
       : []
@@ -285,9 +326,9 @@ export class AiEngine {
       danmaku,
       effect: obj?.effect
         ? {
-            name: String(obj.effect.name || '特效'),
+            name: String(obj.effect.name || this.t('common.effect')),
             emoji: String(obj.effect.emoji || '✨'),
-            level: String(obj.effect.level || '礼物')
+            level: String(obj.effect.level || this.t('common.gift'))
           }
         : undefined,
       videoPrompt: String(obj?.videoPrompt || ''),
