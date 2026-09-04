@@ -1,0 +1,36 @@
+name: Build Windows Installer
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      - name: Package Windows installer
+        run: npm run dist:win
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-live-console-windows
+          path: |
+            release/*.exe
+            release/*.blockmap

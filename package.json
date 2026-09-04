@@ -1,0 +1,52 @@
+{
+  "name": "ai-live-console",
+  "version": "0.1.0",
+  "description": "A desktop AI live-stream simulator: plays AI-generated video segments with danmaku/gifts/activities, powered by an OpenAI-compatible API and ComfyUI.",
+  "main": "./out/main/index.js",
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "dist": "electron-vite build && electron-builder",
+    "dist:win": "electron-vite build && electron-builder --win",
+    "install:skill": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-skill.ps1"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^37.2.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6"
+  },
+  "build": {
+    "appId": "com.example.ai-live-console",
+    "productName": "AI Live Console",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

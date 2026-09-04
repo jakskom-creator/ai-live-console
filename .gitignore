@@ -1,0 +1,15 @@
+node_modules/
+out/
+release/
+dist/
+*.log
+.DS_Store
+Thumbs.db
+*.mp4
+*.png
+*.jpg
+*.jpeg
+*.webp
+streams/
+.vscode/
+.idea/
