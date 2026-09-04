@@ -151,6 +151,45 @@ npm run install:skill
 
 ---
 
+## ComfyUI 工作流：推荐使用 Motion Context 插件
+
+AI Live Console 按段生成视频（`seg_001.mp4`、`seg_002.mp4`…）。要让**连续片段之间的动作与声音真正接续**（不跳变、不重起），
+强烈推荐配合 **H3 Motion Context** 插件使用：
+
+- 📦 插件仓库：[NikoDemon80/ComfyUI-H3-Motion-Context](https://github.com/NikoDemon80/ComfyUI-H3-Motion-Context)
+- 功能：把上一段 H3 片段的 latent（画面 + 声音）直接喂给下一段，画面不经过像素往返（无色偏、不发虚），
+  音频是「继续播放」而不是「重新开始一段相似的声音」
+- 节点：`H3 Motion Context` / `H3 Motion Context Trim` / `H3 Motion Context Load Latent` / `H3 Motion Context Save Latent`
+- 要求：ComfyUI 0.34.0 或更新版本
+
+### 安装
+
+把插件文件夹放进 `ComfyUI/custom_nodes/` 后重启 ComfyUI：
+
+```bash
+cd ComfyUI/custom_nodes
+git clone https://github.com/NikoDemon80/ComfyUI-H3-Motion-Context.git
+```
+
+### 本仓库提供的样本工作流
+
+[`workflows/minimax-h3-long-video-motion-context.json`](workflows/minimax-h3-long-video-motion-context.json)
+是一份可直接导入的 **MiniMax H3 长视频本地工作流**（Ref2VA 单图参考模式 + Motion Context 链式接续），
+包含：
+
+- `MiniMaxH3ReferenceToVideo`（单图参考 → 视频 + 声音）
+- `MiniMaxH3MotionContextLoadLatent` / `SaveLatent`（段间 latent 链，`clip_index` 递增）
+- `MiniMaxH3MotionContextTrim`（裁掉链接触头）
+- 分辨率 / 时长 / 步数节点，供应用自动填写
+
+导入方式：ComfyUI → **Workflow → Open**（或直接把 JSON 拖进画布）。
+在应用「🚀 开播配置」中选择这份 JSON 作为工作流即可。
+
+> 提示：工作流引用了若干模型/LoRA 文件名（见 `loaders` 节点），使用时请把对应模型放进
+> `ComfyUI/models/` 对应目录（`diffusion_models` / `text_encoders` / `vae` / `loras`）。
+
+---
+
 ## 目录结构
 
 ```text

@@ -1,0 +1,419 @@
+{
+  "191": {
+    "inputs": {
+      "prompt": "",
+      "width": [
+        "217",
+        0
+      ],
+      "height": [
+        "217",
+        1
+      ],
+      "length": [
+        "215",
+        1
+      ],
+      "ref_image_size": "match",
+      "clip": [
+        "244:192",
+        0
+      ],
+      "vae": [
+        "244:193",
+        0
+      ],
+      "audio_vae": [
+        "244:194",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "250",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "MiniMax H3 Reference to Video"
+    }
+  },
+  "202": {
+    "inputs": {
+      "latent_path": "h3_context",
+      "clip_index": 1
+    },
+    "class_type": "MiniMaxH3MotionContextLoadLatent",
+    "_meta": {
+      "title": "H3 Motion Context Load Latent"
+    }
+  },
+  "203": {
+    "inputs": {
+      "model": [
+        "244:198",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+    "_meta": {
+      "title": "MiniMax H3 Mem Eff Sage Attention Patch"
+    }
+  },
+  "205": {
+    "inputs": {
+      "enabled": true,
+      "blend_weight": 0.5,
+      "degree": 1,
+      "ridge_lambda": 0.1,
+      "window_size": 2,
+      "flex_window": 0.75,
+      "warmup_steps": 1,
+      "tail_actual_steps": 1,
+      "max_history": 8,
+      "debug": false,
+      "history_storage": "system_ram",
+      "model": [
+        "257",
+        0
+      ]
+    },
+    "class_type": "SpectrumApplyMiniMaxH3",
+    "_meta": {
+      "title": "Spectrum Apply MiniMax H3"
+    }
+  },
+  "213": {
+    "inputs": {
+      "trim_frames": [
+        "237",
+        1
+      ],
+      "fps": 24,
+      "match_tail": true,
+      "images": [
+        "245:211",
+        0
+      ],
+      "audio": [
+        "245:212",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3MotionContextTrim",
+    "_meta": {
+      "title": "H3 Motion Context Trim"
+    }
+  },
+  "215": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "216",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "数学表达式"
+    }
+  },
+  "216": {
+    "inputs": {
+      "value": 10
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "Duration in Seconds"
+    }
+  },
+  "217": {
+    "inputs": {
+      "aspect_ratio": "9:16 (Portrait Widescreen)",
+      "megapixels": 0.2,
+      "multiple": 8
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "分辨率选择器"
+    }
+  },
+  "218": {
+    "inputs": {
+      "filename_prefix": "h3_context/clip",
+      "clip_index": 2,
+      "latent": [
+        "245:210",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3MotionContextSaveLatent",
+    "_meta": {
+      "title": "H3 Motion Context Save Latent"
+    }
+  },
+  "237": {
+    "inputs": {
+      "context_length": "22",
+      "audio_context_length": 24,
+      "conditioning": [
+        "191",
+        0
+      ],
+      "vae": [
+        "244:193",
+        0
+      ],
+      "latent": [
+        "191",
+        1
+      ],
+      "context_latent": [
+        "202",
+        0
+      ],
+      "audio_vae": [
+        "244:194",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3MotionContext",
+    "_meta": {
+      "title": "H3 Motion Context"
+    }
+  },
+  "238": {
+    "inputs": {
+      "lora_name": "minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors",
+      "strength_model": 0.8,
+      "model": [
+        "203",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoRA加载器（仅模型）"
+    }
+  },
+  "250": {
+    "inputs": {
+      "image": "deepseek娘.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "255": {
+    "inputs": {
+      "filename_prefix": "video/ComfyUI",
+      "format": "mp4",
+      "format.codec": "auto",
+      "codec": "h264",
+      "codec.encoding": "auto",
+      "video": [
+        "245:214",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "保存视频"
+    }
+  },
+  "256": {
+    "inputs": {
+      "lora_name": "VBVR_H3_attn_only.safetensors",
+      "strength_model": 1,
+      "model": [
+        "238",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoRA加载器（仅模型）"
+    }
+  },
+  "257": {
+    "inputs": {
+      "lora_name": "MysticXXX_MMH3-V4-ref2va.safetensors",
+      "strength_model": 0.9,
+      "model": [
+        "256",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoRA加载器（仅模型）"
+    }
+  },
+  "244:194": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "加载VAE"
+    }
+  },
+  "245:206": {
+    "inputs": {
+      "noise_seed": 90747659131030
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "随机噪波"
+    }
+  },
+  "245:208": {
+    "inputs": {
+      "sampler_name": "er_sde"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "K采样器选择"
+    }
+  },
+  "244:198": {
+    "inputs": {
+      "unet_name": "minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNet加载器"
+    }
+  },
+  "244:192": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_h3_ultra_uncensored_heretic_int8_convrot.safetensors",
+      "type": "stable_diffusion",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "加载CLIP"
+    }
+  },
+  "244:193": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "加载VAE"
+    }
+  },
+  "245:209": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 4,
+      "denoise": 1,
+      "model": [
+        "205",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "基本调度器"
+    }
+  },
+  "245:207": {
+    "inputs": {
+      "model": [
+        "205",
+        0
+      ],
+      "conditioning": [
+        "237",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "基本引导器"
+    }
+  },
+  "245:210": {
+    "inputs": {
+      "noise": [
+        "245:206",
+        0
+      ],
+      "guider": [
+        "245:207",
+        0
+      ],
+      "sampler": [
+        "245:208",
+        0
+      ],
+      "sigmas": [
+        "245:209",
+        0
+      ],
+      "latent_image": [
+        "191",
+        1
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "自定义采样器（高级）"
+    }
+  },
+  "245:211": {
+    "inputs": {
+      "samples": [
+        "245:210",
+        0
+      ],
+      "vae": [
+        "244:193",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "245:212": {
+    "inputs": {
+      "samples": [
+        "245:210",
+        0
+      ],
+      "vae": [
+        "244:194",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "VAE解码（音频）"
+    }
+  },
+  "245:214": {
+    "inputs": {
+      "fps": 24,
+      "bit_depth": 8,
+      "color_space": "sRGB",
+      "images": [
+        "213",
+        0
+      ],
+      "audio": [
+        "213",
+        1
+      ]
+    },
+    "class_type": "CreateVideo",
+    "_meta": {
+      "title": "创建视频"
+    }
+  }
+}
