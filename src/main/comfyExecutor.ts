@@ -33,10 +33,17 @@ interface PromptNode {
  */
 export class ComfyExecutor {
   private segmentIndex = 0
+  /** 本次直播会话的 MotionContext latent 目录（每次开播生成新值，隔离旧直播的 latent，防止串角色/串内容） */
+  private sessionId = this.newSessionId()
   private adapter: WorkflowAdapter
 
   constructor(private readonly getSettings: () => AppSettings) {
     this.adapter = new WorkflowAdapter(getSettings)
+  }
+
+  /** 生成一次直播会话的独立 latent 目录名（如 h3_ctx_lx2m4n） */
+  private newSessionId(): string {
+    return `h3_ctx_${Date.now().toString(36)}`
   }
 
   /** 当前界面语言（跟随设置） */
@@ -55,6 +62,28 @@ export class ComfyExecutor {
 
   reset(): void {
     this.segmentIndex = 0
+    // 新直播会话：换一个全新的 latent 目录，避免读到上一次直播（角色A）的 MotionContext 缓存
+    this.sessionId = this.newSessionId()
+  }
+
+  /**
+   * 把工作流中 Motion Context 的 Load/Save Latent 路径改到本次会话目录。
+   * 这样每次直播（角色 A → 角色 B）都使用独立的 latent 空间，旧直播残留的
+   * clip_*.safetensors 永远不会被读到，杜绝「角色B第一段参考了角色A末帧」的串内容问题。
+   */
+  private isolateMotionContextSession(workflow: any): void {
+    for (const key of Object.keys(workflow)) {
+      const node = workflow[key]
+      const inputs = node?.inputs
+      if (!inputs || typeof inputs !== 'object') continue
+      const cls = String(node?.class_type || '')
+      if (/MotionContextLoadLatent/i.test(cls) && typeof inputs.latent_path === 'string') {
+        inputs.latent_path = this.sessionId
+      }
+      if (/MotionContextSaveLatent/i.test(cls) && typeof inputs.filename_prefix === 'string') {
+        inputs.filename_prefix = `${this.sessionId}/clip`
+      }
+    }
   }
 
   async generate(
@@ -73,14 +102,17 @@ export class ComfyExecutor {
       return { ok: false, message: this.t('comfy.readFail', { msg: String(error?.message || error) }) }
     }
 
-    // 修改工作流：优先用 AI 映射（已识别时），否则用启发式规则
+    // 修改工作流：优先用 AI 映射（已识别且工作流未变更时），否则用启发式规则
     try {
       // 先确保角色参考图被上传到 ComfyUI 的 input 目录（避免文件不在当前根目录导致参考图失效）
       await this.uploadReferenceImage(settings, extra?.referenceImagePath)
 
       const mapping = settings.workflowMapping
+      // 映射只对「生成它的那份工作流」有效：换过工作流文件后旧映射失效，回退启发式
+      const mappingValid =
+        !!mapping && !!mapping.workflowPath && mapping.workflowPath === settings.workflowPath
       const refFileName = extra?.referenceImagePath ? basename(extra.referenceImagePath) : undefined
-      if (mapping) {
+      if (mappingValid) {
         this.adapter.applyMapping(workflow, mapping, {
           prompt: videoPrompt,
           imageFileName: refFileName,
@@ -92,6 +124,9 @@ export class ComfyExecutor {
       } else {
         this.applyWorkflowParams(workflow, videoPrompt, settings, extra?.referenceImagePath)
       }
+
+      // 无论走哪条路径，都把 MotionContext 的 latent 指向本次直播会话目录（隔离旧直播缓存）
+      this.isolateMotionContextSession(workflow)
     } catch (error: any) {
       return { ok: false, message: this.t('comfy.fillFail', { msg: String(error?.message || error) }) }
     }

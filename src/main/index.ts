@@ -152,6 +152,9 @@ function registerIpc(): void {
   })
   ipcMain.handle('engine:init', async () => {
     sendStatus(t('status.generating'))
+    // 新直播会话：重置 Comfy 执行器（segmentIndex 归零 + 生成新的 MotionContext latent 目录），
+    // 避免上一次直播（角色A）的 latent 缓存/片段序号残留到本次直播（角色B）
+    comfyExecutor!.reset()
     const result = await aiEngine!.initProfile()
     return result
   })

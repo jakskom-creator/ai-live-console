@@ -148,4 +148,8 @@ export interface WorkflowMapping {
   motionSave?: WorkflowFieldRef
   /** 附加说明（AI 诊断信息，展示用） */
   notes?: string
+  /** 该映射对应的工作流文件路径（换工作流后旧映射失效） */
+  workflowPath?: string
+  /** 生成该映射时使用的模型名 */
+  model?: string
 }
