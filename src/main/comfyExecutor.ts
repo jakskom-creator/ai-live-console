@@ -3,7 +3,6 @@ import { basename, join, extname } from 'node:path'
 import type { AppSettings } from '../shared/types'
 import { tr, type Lang } from '../shared/i18n'
 import { WorkflowAdapter } from './workflowAdapter'
-
 export interface ComfyResult {
   ok: boolean
   message: string
@@ -58,6 +57,54 @@ export class ComfyExecutor {
   reset(): void {
     this.segmentIndex = 0
     this.lastResolution = ''
+  }
+
+  /**
+   * 清理 ComfyUI 的 MotionContext latent 缓存（h3_context 目录）。
+   * 每次开播/重开直播时调用：删除旧的 clip_*.safetensors，
+   * 让新直播从干净的 latent 空间开始，彻底杜绝「新直播撞上旧直播的 latent 分辨率」。
+   * 目录来自设置 comfyOutputDir，未配置时自动探测常见位置。
+   */
+  async clearLatentCache(): Promise<void> {
+    const dirs = this.candidateLatentDirs()
+    for (const dir of dirs) {
+      try {
+        const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => null)
+        if (!entries) continue
+        for (const entry of entries) {
+          if (!entry.isFile()) continue
+          if (/^clip_\d+.*\.safetensors$/i.test(entry.name)) {
+            await fs.unlink(join(dir, entry.name)).catch(() => undefined)
+          }
+        }
+      } catch {
+        // 忽略单个目录错误，继续尝试其它候选
+      }
+    }
+  }
+
+  /** 候选的 h3_context latent 目录（设置优先，其次常见 ComfyUI 路径） */
+  private candidateLatentDirs(): string[] {
+    const dirs: string[] = []
+    const configured = this.getSettings().comfyOutputDir?.trim()
+    if (configured) {
+      dirs.push(join(configured, 'h3_context'))
+      dirs.push(join(configured, 'output', 'h3_context'))
+    }
+    // 常见默认位置（Comfy Desktop / 官方包 / 便携版）
+    const home = process.env.USERPROFILE || ''
+    const candidates = [
+      'D:\\Comfy-Desktop\\ComfyUI-Shared\\output',
+      'D:\\ComfyUI\\output',
+      'D:\\ComfyUI_windows_portable\\ComfyUI\\output',
+      'C:\\ComfyUI\\output',
+      home ? join(home, 'ComfyUI', 'output') : '',
+      home ? join(home, 'Documents', 'ComfyUI', 'output') : ''
+    ]
+    for (const c of candidates) {
+      if (c) dirs.push(join(c, 'h3_context'))
+    }
+    return dirs
   }
 
   async generate(

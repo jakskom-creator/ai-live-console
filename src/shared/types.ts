@@ -25,6 +25,8 @@ export interface AppSettings {
   resolution: string
   steps: number
   durationSec: number
+  /** ComfyUI 输出目录（用于开播时清理旧 MotionContext latent 缓存，防止串直播） */
+  comfyOutputDir: string
   /** AI 识别的工作流节点映射（由 workflow:analyze 生成并保存，用于按映射填值） */
   workflowMapping: WorkflowMapping | null
 }

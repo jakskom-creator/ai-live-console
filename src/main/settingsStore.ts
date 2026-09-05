@@ -27,6 +27,8 @@ const DEFAULTS: AppSettings = {
   resolution: '0.4MP',
   steps: 6,
   durationSec: 10,
+  // ComfyUI 输出目录（默认空：自动探测；开播时用于清理旧 MotionContext latent）
+  comfyOutputDir: '',
   // AI 识别的工作流节点映射（初始为空）
   workflowMapping: null
 }

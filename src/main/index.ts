@@ -152,9 +152,10 @@ function registerIpc(): void {
   })
   ipcMain.handle('engine:init', async () => {
     sendStatus(t('status.generating'))
-    // 新直播会话：重置 Comfy 执行器（segmentIndex 归零 + 生成新的 MotionContext latent 目录），
-    // 避免上一次直播（角色A）的 latent 缓存/片段序号残留到本次直播（角色B）
+    // 新直播会话：重置 Comfy 执行器（segmentIndex 归零），并清理旧 MotionContext latent 缓存，
+    // 避免上一次直播（角色A/旧分辨率）的 clip_*.safetensors 残留被本次直播读到
     comfyExecutor!.reset()
+    await comfyExecutor!.clearLatentCache()
     const result = await aiEngine!.initProfile()
     return result
   })
@@ -222,6 +223,7 @@ function registerIpc(): void {
   ipcMain.handle('engine:reset', async () => {
     await aiEngine!.reset()
     comfyExecutor!.reset()
+    await comfyExecutor!.clearLatentCache()
     return { ok: true, message: t('engine.reset') }
   })
   ipcMain.handle('engine:list-models', async () => {

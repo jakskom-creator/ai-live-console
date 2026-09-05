@@ -1150,6 +1150,14 @@ function SettingsModal({
             placeholder="http://127.0.0.1:8188"
           />
         </div>
+        <div className="form-row">
+          <label>{t('settings.comfyOutputDir')}</label>
+          <input
+            value={draft.comfyOutputDir}
+            onChange={(e) => setDraft((d) => ({ ...d, comfyOutputDir: e.target.value }))}
+            placeholder={t('settings.comfyOutputDirPlaceholder')}
+          />
+        </div>
         <div className="modal-actions">
           <button className="ghost-btn" onClick={() => void testComfy()}>
             {t('settings.testComfy')}
