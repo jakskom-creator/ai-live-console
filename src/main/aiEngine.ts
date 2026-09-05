@@ -108,13 +108,17 @@ ${appearance}
 
 ${styleLock.en}
 
-Personality: ${settings.personality || personalityDefault}
+Personality (AUTHORITATIVE, must be fully preserved in the 人设 field — do NOT compress, summarize, rewrite or drop any trait):
+${settings.personality || personalityDefault}
 ${langLine}
 Extra requirements: ${settings.extraRequirements || 'none'}
 
 Output format (one line, no formatting symbols):
-主播名：xxx；外貌：<faithfully reproduce the appearance above, keep all key traits>；直播间场景：xxx；人设：xxx；说话风格：xxx
-Rule: the 外貌 field must match the appearance above exactly — never swap in different outfits, hairstyles, or colors.`
+主播名：xxx；外貌：<faithfully reproduce the appearance above, keep all key traits>；直播间场景：xxx；人设：<faithfully keep the ENTIRE personality description above, every trait verbatim>；说话风格：<derive a speaking style from the personality, 1 sentence>
+Rules:
+- The 外貌 field must match the appearance above exactly.
+- The 人设 field must keep the ENTIRE personality description above word-for-word; never shorten it.
+- The 说话风格 field should be a short speaking-style summary derived from that personality.`
       : `这是本次虚拟直播的开播初始化。以下「外观描述」是用户提供的权威事实，你必须原样沿用，禁止替换、禁止自由发挥、禁止省略关键特征（发型/服装/配色/配饰一个都不能改）。
 
 外观描述（权威，外貌字段必须忠实沿用）：
@@ -122,13 +126,17 @@ ${appearance}
 
 ${styleLock.zh}
 
-性格：${settings.personality || personalityDefault}
+性格（权威，人设字段必须完整保留——禁止压缩、概括、改写或丢弃任何性格特质）：
+${settings.personality || personalityDefault}
 ${langLine}
 额外要求：${settings.extraRequirements || '无'}
 
 请输出格式（一行，不要任何格式符号）：
-主播名：xxx；外貌：<忠实沿用上面的外观描述，保留全部关键特征：发型、服装、配色、配饰>；直播间场景：xxx；人设：xxx；说话风格：xxx
-规则：外貌字段必须与上面的外观描述一致，不许换成别的服装/发型/配色。`
+主播名：xxx；外貌：<忠实沿用上面的外观描述，保留全部关键特征：发型、服装、配色、配饰>；直播间场景：xxx；人设：<完整保留上面的性格描述，一字不落地放进人设字段，禁止删减>；说话风格：<根据该性格推导出一句话说话风格>
+规则：
+- 外貌字段必须与上面的外观描述一致，不许换成别的服装/发型/配色。
+- 人设字段必须完整保留上面的性格描述原文，禁止压缩/概括/改写。
+- 说话风格字段根据该性格写一句简短的说话风格概括。`
     const text = await this.chatOnce(prompt)
     if (!text) return { ok: false, message: this.t('engine.profileFail') }
     this.profile = this.parseProfile(text)
@@ -370,8 +378,13 @@ ${appearance}`
       en ? `Streamer name: ${p.name || '(unnamed)'}` : `主播名：${p.name || '（未命名）'}`
     ]
     if (p.appearance) parts.push(en ? `Appearance: ${p.appearance}` : `外貌：${p.appearance}`)
-    if (p.persona) parts.push(en ? `Persona: ${p.persona}` : `人设：${p.persona}`)
+    if (p.persona) parts.push(en ? `Persona (MUST be embodied in every line, danmaku and reaction): ${p.persona}` : `人设（每句台词、每条弹幕、每个反应都必须体现这个人设）：${p.persona}`)
     if (p.scene) parts.push(en ? `Live room scene: ${p.scene}` : `直播间场景：${p.scene}`)
+    parts.push(
+      en
+        ? 'PERSONALITY ENFORCEMENT: the streamer\'s line (line field), the simulated viewer danmaku, and every reaction you design must be consistent with the Persona above. Every turn, let the personality show through the wording, tone, habits and catchphrases — never fall back to a generic, personality-less host.'
+        : '性格强制要求：主播的台词（line 字段）、你模拟的观众弹幕、以及你设计的每个反应，都必须与上面的人设保持一致。每一回合都要让性格通过措辞、语气、口头禅和习惯体现出来——禁止退回成没有性格的通用主播。'
+    )
     parts.push(
       en
         ? 'In the subject_definitions / detailed_description of every videoPrompt, you must always describe this streamer with this profile (appearance, clothing, hairstyle, figure, and room decor), keeping everything consistent — never substitute an unrelated person.'
@@ -416,10 +429,16 @@ ${appearance}`
 
   private parseProfile(text: string): { name: string; persona: string; appearance: string; scene: string } {
     const en = this.lang() === 'en'
+    // 按「字段名：」到下一个字段名之间的内容提取，而不是按分号截断——
+    // 用户填的性格/外貌常含分号，按分号截断会把长描述砍掉导致性格体现不出来。
     const pick = (keys: string[]): string => {
       for (const key of keys) {
-        const m = new RegExp(`${key}[:：]\\s*([^；;。]+)`).exec(text)
-        if (m) return m[1].trim()
+        const re = new RegExp(`${key}[:：]\\s*([^]*?)(?=(?:主播名|外貌|直播间场景|人设|说话风格|Streamer name|Appearance|Live room scene|Persona|Personality|Speaking style|Scene|Name)[:：]|$)`, 'i')
+        const m = re.exec(text)
+        if (m) {
+          const v = m[1].replace(/[；;]\s*$/, '').trim()
+          if (v) return v
+        }
       }
       return ''
     }
