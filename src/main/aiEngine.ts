@@ -347,6 +347,16 @@ ${appearance}`
     parts.push(`- ${en ? 'Lower body' : '下躯干区'}：${this.clothingState.lower || initial}`)
     parts.push(`- ${en ? 'Legs & feet' : '腿足区'}：${this.clothingState.legs || initial}`)
     parts.push(`- ${en ? 'Note' : '状态备注'}：${this.clothingState.note || none}`)
+    // 上一段末帧状态（nextState）：接续段 videoPrompt 必须以它为起点继续，禁止跳变
+    // 仅当已有交互回合（非第一段）时注入；第一段没有上一段
+    if (this.history.length > 0 && this.lastState && this.lastState.trim()) {
+      parts.push('', en ? '## Previous Segment Final Frame (the new segment must CONTINUE from this exact state)' : '## 上一段末帧状态（新一段必须从该状态精确接续，禁止跳变）')
+      parts.push(
+        en
+          ? `Last frame of the previous segment: ${this.lastState}\nThe new segment's videoPrompt must start from this exact state and CONTINUE the motion, pose, gaze direction, camera angle, outfit and scene seamlessly. No teleport, no reset, no pose rewind, no camera cut, no clothing change, no scene change. The only allowed change is natural, gradual continuation of the ongoing motion at the same rhythm.`
+          : `上一段末帧：${this.lastState}\n本段 videoPrompt 必须从该状态精确接续并延续动作、姿态、视线方向、机位角度、服装与场景。禁止瞬移、禁止重置动作、禁止动作倒带、禁止切机位、禁止换装、禁止换场景；只允许在同一节奏下对进行中的动作做自然、渐进的延续。`
+      )
+    }
     parts.push(
       en
         ? 'Rules: clothing marked "removed/absent" must NEVER reappear in any later segment; when this segment ends, if the clothing/body state changed, you must fully update all five zones in the clothingState output (even if unchanged, fill back the current state verbatim).'

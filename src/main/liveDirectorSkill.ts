@@ -82,8 +82,9 @@ videoPrompt 必须按以下 6 个 section 顺序组织，缺一不可、顺序�
   repeating this cycle approximately twice per second without pause。
 - **反修辞**：删掉情绪形容词（beautiful/gentle/tender/soft/warm/graceful…），每个词都必须是可验证的机械描述。
 - **反代词**：多肢体场景禁用歧义代词，全部具名——用 the streamer's right hand，代词只在本句有唯一先行词时使用。
-- **机位调度**：固定 webcam 机位（stable eye-level webcam framing, waist-up），每段可 1–2 次机位/景别变化，
-  景别词写进 [Shot N] 开头（wide/medium/close-up），至少 1 个面部/手部/动作细节特写。
+- **机位调度**：固定 webcam 机位（stable eye-level webcam framing, waist-up）。第一段（seg_001）
+  可 1–2 次机位/景别变化，景别词写进 [Shot N] 开头（wide/medium/close-up），至少 1 个面部/手部/动作细节特写；
+  **接续段（seg_002+）禁止任何机位/景别变化**（见 I 节）。
 - **可见性优先**：一个镜头只描述该机位真正看得见的内容；想展示被遮挡处就先写清切机位。
 - **段末定格运动中间态**：每段结尾停在"进行中"的一拍，不要停在完全静止的完成态；
   写 no on-screen text, no subtitles, no UI overlays。
@@ -100,13 +101,36 @@ videoPrompt 必须按以下 6 个 section 顺序组织，缺一不可、顺序�
 - 台词过多会导致视频生成失败（口型/同步崩坏）。可写呼吸/语气词（嗯、哈），或本轮不写整句台词只做动作。
 - 主播说话时的完整句仍放在 <d>[Chinese] 逐字台词</d>，逐字不删减。
 
-### I. 接续段（seg_002+）链式锚定
+### I. 接续段（seg_002+）链式锚定 —— 最重要的规则，违反必跳变
 
-- 除第一段（seg_001）外，后续段落由上一段 latent（H3 Motion Context）链式接续。
-- 接续段的 videoPrompt **最开头**必须写 CONTINUITY LOCK (chained from previous segment): 块，
-  逐条写明上一段结束状态（场景/剩余衣着/姿态与接触点/视线），并声明延续：
-  the same rhythm continues without resetting, no teleport, no reset, no pose rewind; Style, face, body, clothing and the environment never change.
-- 再接上文 A–H 的正常六段式；subject_definitions 的穿着 = **当前实际穿着**（来自上一段 nextState）。
+接续段（非第一段）由上一段 latent（H3 Motion Context）链式接续。**第一帧像素级继承上一段末帧**，
+但之后画面怎么走完全由提示词决定。以下规则必须逐字遵守，任何一条缺失/违反都会导致第二帧开始跳变：
+
+1. **videoPrompt 最开头必须写 CONTINUITY LOCK (chained from previous segment): 块**，逐条写明上一段末帧状态：
+   - Scene: 场景与机位（固定 webcam 机位，景别不变）
+   - Outfit: 当前实际穿着（逐字采用 clothingState）
+   - Pose & Contact: 上一段末帧的姿态/肢体位置/接触点（来自系统提示词「上一段末帧状态」，逐字沿用）
+   - Gaze: 视线方向
+   - Motion: 进行中的动作与节奏（周期/速度）
+   - 声明：the previous frame's pose, gaze, outfit, camera angle and scene continue seamlessly; the motion continues at the same rhythm without resetting.
+
+2. **机位硬锁定**：接续段【禁止任何机位/景别变化】——只有一个镜头，景别与上一段完全一致
+   （stable eye-level webcam framing, waist-up）。禁止切镜头、禁止变景别、禁止换角度、禁止环绕。
+   这是与第一段（允许 1–2 次机位变化）的最大区别。
+
+3. **动作必须"接着做"，禁止"重新做"**：以上一段末帧的进行中动作（mid-motion）为起点继续，
+   动作节奏、方向、速度不变。禁止：动作重置（reset/rewind）、瞬移（teleport）、重新起势、
+   换一套新动作重新开始。若上一段在挥手，本段继续挥手收尾，而不是站直了重新打招呼。
+
+4. **summary 必须明确接续**：以 [reference generation] The target video shows the streamer CONTINUING
+   the previous segment's ongoing motion ... 开头，而不是重新描述一个独立场景。
+
+5. **[Shot 1] 开头必须显式接续**：第一个镜头写 [Shot 1] Continuing directly from the previous segment's
+   final frame, the camera stays at the same stable eye-level webcam framing (waist-up), 然后接着写
+   上一段末帧姿态的微动作延续（如上移的手臂继续抬起 x cm），再自然推进。
+
+6. **除上述接续规则外**，A–H 其余规则仍然有效：subject_definitions 的穿着 = 当前实际穿着
+   （来自 clothingState）；台词量、反修辞、反代词、段末定格运动中间态等照常。
 
 ## 输出格式（严格 JSON，不要有任何其他文字/代码块标记）
 
@@ -132,6 +156,10 @@ videoPrompt 必须按以下 6 个 section 顺序组织，缺一不可、顺序�
 注意：
 - effect 仅在礼物/特效回合出现，普通弹幕回合省略该字段。
 - 每次互动必须包含 line、danmaku、videoPrompt、nextState、clothingState、system。
+- **nextState 必须写"可续接"的末帧状态**：写成具体画面而非情绪总结——固定格式
+  「<机位/景别>，<身体姿态/肢体位置>，<视线方向>，<进行中的动作与节奏>，<表情>，<服装状态>」，
+  例如：`固定腰部以上平视机位，右手抬到胸前比心、五指微张，视线看向镜头，比心动作进行到一半（收合阶段，约每秒一次循环），面带微笑，深蓝白女仆装与白色围裙，蓝色渐变长发垂在肩前`。
+  禁止只写"主播很可爱地结束了互动"这类无法续接的描述。
 - **clothingState 是主播状态系统的唯一权威输入，每回合必填**：严格照抄系统提示词
   「主播状态系统」中五区当前状态；本段若衣物/裸露/状态有变化，五区要同步更新为新状态；
   没有变化也要原样回填，禁止漏掉、禁止编造与状态系统不一致的穿着。
