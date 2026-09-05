@@ -37,7 +37,39 @@ function setByPath(obj: any, path: string, value: unknown): boolean {
   return true
 }
 
-/** 校验 AI 返回的映射：nodeId 必须真实存在于工作流，field 必须可写 */
+/** 判断路径指向的最终值是「标量」（数字/字符串/布尔），而非连接引用数组 */
+function isScalarAt(obj: any, path: string): boolean {
+  const segs = path.split('.')
+  let cur = obj
+  for (let i = 0; i < segs.length - 1; i++) {
+    if (cur == null || typeof cur !== 'object') return false
+    const key = /^\d+$/.test(segs[i]) ? Number(segs[i]) : segs[i]
+    cur = cur[key]
+  }
+  if (cur == null || typeof cur !== 'object') return false
+  const last = segs[segs.length - 1]
+  const key = /^\d+$/.test(last) ? Number(last) : last
+  const v = cur[key]
+  return typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'
+}
+
+/**
+ * 规范化 AI 返回的字段路径：
+ * 1. 若原样存在且指向标量值 → 返回原路径
+ * 2. 若缺 "inputs." 前缀、补上后存在且指向标量值 → 返回补全后的路径
+ * 3. 都不行 → 返回 undefined（宁缺毋滥，不编造）
+ */
+function normalizeField(node: any, field: string): string | undefined {
+  if (!field) return undefined
+  if (isScalarAt(node, field)) return field
+  if (!field.startsWith('inputs.')) {
+    const withInputs = `inputs.${field}`
+    if (isScalarAt(node, withInputs)) return withInputs
+  }
+  return undefined
+}
+
+/** 校验 AI 返回的映射：nodeId 必须真实存在，field 规范化后必须指向标量字段 */
 function sanitizeMapping(raw: any, workflow: any): WorkflowMapping {
   const valid = (ref: any): WorkflowFieldRef | undefined => {
     if (!ref || typeof ref !== 'object') return undefined
@@ -46,14 +78,9 @@ function sanitizeMapping(raw: any, workflow: any): WorkflowMapping {
     if (!nodeId || !field) return undefined
     const node = workflow[nodeId]
     if (!node || typeof node !== 'object') return undefined
-    // 字段路径至少存在一半（目标父级存在即可写，值本身可为空）
-    const segs = field.split('.')
-    const parentPath = segs.slice(0, -1).join('.')
-    if (parentPath) {
-      const parent = getByPath(node, parentPath)
-      if (parent == null || typeof parent !== 'object') return undefined
-    }
-    return { nodeId, field }
+    const normalized = normalizeField(node, field)
+    if (!normalized) return undefined
+    return { nodeId, field: normalized }
   }
   return {
     prompt: valid(raw?.prompt),
@@ -259,7 +286,12 @@ ${description}`
   ): void {
     const write = (ref: WorkflowFieldRef | undefined, value: unknown): boolean => {
       if (!ref) return false
-      return setByPath(workflow[ref.nodeId], ref.field, value)
+      const node = workflow[ref.nodeId]
+      if (!node || typeof node !== 'object') return false
+      // 容错：旧映射可能缺 "inputs." 前缀，自动规范化后再写入
+      const path = normalizeField(node, ref.field)
+      if (!path) return false
+      return setByPath(node, path, value)
     }
 
     if (mapping.prompt && params.prompt) {

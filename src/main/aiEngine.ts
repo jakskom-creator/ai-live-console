@@ -51,6 +51,7 @@ export class AiEngine {
 
   /**
    * 首次开播：读取参考图/文字描述，生成并锁定主播角色卡。
+   * 注意：外观描述是用户提供的「权威事实」，角色卡必须严格沿用，禁止改写/自由发挥。
    */
   async initProfile(): Promise<EngineResult> {
     const settings = this.getSettings()
@@ -62,12 +63,31 @@ export class AiEngine {
     const langLine = en
       ? 'Language: English — all profile fields must be written in English.'
       : '内容模式：全年龄通用'
-    const prompt = `这是本次虚拟直播的开播初始化。请基于以下主播外貌信息，生成一句主播角色设定（不要任何格式符号，直接一句话）：
-外观：${appearance}
+    const prompt = en
+      ? `This is the initial setup for a virtual live stream. The appearance below is the AUTHORITATIVE description provided by the user — you MUST preserve it faithfully in the 外貌 field. Never replace, summarize away, or invent clothing/hairstyle/colors that are not in it.
+
+Appearance (authoritative, keep every key trait: hair, clothing, colors, accessories):
+${appearance}
+
+Personality: ${settings.personality || personalityDefault}
+${langLine}
+Extra requirements: ${settings.extraRequirements || 'none'}
+
+Output format (one line, no formatting symbols):
+主播名：xxx；外貌：<faithfully reproduce the appearance above, keep all key traits>；直播间场景：xxx；人设：xxx；说话风格：xxx
+Rule: the 外貌 field must match the appearance above exactly — never swap in different outfits, hairstyles, or colors.`
+      : `这是本次虚拟直播的开播初始化。以下「外观描述」是用户提供的权威事实，你必须原样沿用，禁止替换、禁止自由发挥、禁止省略关键特征（发型/服装/配色/配饰一个都不能改）。
+
+外观描述（权威，外貌字段必须忠实沿用）：
+${appearance}
+
 性格：${settings.personality || personalityDefault}
 ${langLine}
 额外要求：${settings.extraRequirements || '无'}
-请输出格式：主播名：xxx；外貌：xxx；直播间场景：xxx；人设：xxx；说话风格：xxx${en ? '（全部用英文输出）' : ''}`
+
+请输出格式（一行，不要任何格式符号）：
+主播名：xxx；外貌：<忠实沿用上面的外观描述，保留全部关键特征：发型、服装、配色、配饰>；直播间场景：xxx；人设：xxx；说话风格：xxx
+规则：外貌字段必须与上面的外观描述一致，不许换成别的服装/发型/配色。`
     const text = await this.chatOnce(prompt)
     if (!text) return { ok: false, message: this.t('engine.profileFail') }
     this.profile = this.parseProfile(text)
@@ -160,17 +180,21 @@ ${langLine}
 
   private async buildAppearanceText(settings: AppSettings): Promise<string> {
     const en = this.lang() === 'en'
-    if (settings.referenceMode === 'description') {
-      return settings.referenceDescription || (en ? '(no text description provided)' : '（未提供文字描述）')
+    const desc = settings.referenceDescription?.trim()
+    const fileName = settings.referenceImagePath ? settings.referenceImagePath.split(/[\\/]/).pop() : ''
+    // 文字描述是「权威事实」：只要有就优先作为外貌依据（模型看不到图片内容，描述才能保证一致性）
+    if (desc) {
+      return en
+        ? `User text description (AUTHORITATIVE, follow it exactly): ${desc}${fileName ? `\n(Reference image file also provided: ${fileName})` : ''}`
+        : `用户文字描述（权威，必须严格遵循）：${desc}${fileName ? `\n（另提供参考图文件：${fileName}）` : ''}`
     }
-    // 多模态模式但引擎只能看文本：优先尝试把参考图作为 base64 附件发送（取决于模型）
-    // 为了兼容纯文本模型，这里提供占位描述并提示引擎，若模型支持多模态可后续扩展。
+    // 没有文字描述时：多模态模式尝试读参考图，但引擎只发文本，只能提示模型按文件名/常识推断
     if (settings.referenceImagePath) {
       try {
         const buf = await fs.readFile(settings.referenceImagePath)
         return en
-          ? `A reference image is provided (file: ${settings.referenceImagePath.split(/[\\/]/).pop()}, size ${buf.length} bytes). If this model supports images, analyze it directly; otherwise infer the streamer's appearance from the file name and common sense.`
-          : `参考图已提供（文件名：${settings.referenceImagePath.split(/[\\/]/).pop()}，大小 ${buf.length} 字节）。若本模型支持图片，可直接分析该图；否则请基于文件名和常识推断主播外观。`
+          ? `A reference image is provided (file: ${fileName}, size ${buf.length} bytes). If this model supports images, analyze it directly; otherwise infer the streamer's appearance from the file name and common sense.`
+          : `参考图已提供（文件名：${fileName}，大小 ${buf.length} 字节）。若本模型支持图片，可直接分析该图；否则请基于文件名和常识推断主播外观。`
       } catch {
         return en ? '(failed to read the reference image file)' : '（参考图文件读取失败）'
       }
