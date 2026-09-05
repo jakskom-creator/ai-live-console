@@ -91,8 +91,65 @@ ${langLine}
     const text = await this.chatOnce(prompt)
     if (!text) return { ok: false, message: this.t('engine.profileFail') }
     this.profile = this.parseProfile(text)
+    // 追加：从外观描述解析初始五区服装状态，防止互动回合 AI 自由发挥服装（如凭空编出毛衣/长裤）
+    await this.initClothingState(appearance, en)
     this.lastState = en ? 'Opening, sitting in front of the camera, ready to start streaming' : '开场，坐在摄像头前准备开始直播'
     return { ok: true, message: this.t('engine.profileReady', { name: this.profile.name }) }
+  }
+
+  /**
+   * 根据权威外观描述，让 AI 解析出直播开始时主播的初始五区服装状态。
+   * 解析结果存入 clothingState，作为「主播状态系统」的权威初始值，
+   * 互动回合的系统提示词会逐字沿用，杜绝 AI 自编服装。
+   * 解析失败时保持空状态（互动回合回退为「以参考图/外貌描述为准」）。
+   */
+  private async initClothingState(appearance: string, en: boolean): Promise<void> {
+    try {
+      const prompt = en
+        ? `Below is the AUTHORITATIVE appearance description of the streamer. Extract the streamer's CURRENT OUTFIT at the start of the live as five zones, and output ONLY a JSON object (no other text, no markdown code blocks):
+{
+  "head": "head/neck zone: hairstyle, hair accessories, earrings, choker",
+  "upper": "upper body: top, inner layer, collar, necklace",
+  "lower": "lower body: skirt/pants, apron",
+  "legs": "legs/feet: stockings, shoes",
+  "note": "pose/expression/prop notes, empty if none"
+}
+Rules:
+- Extract ONLY from the description; NEVER add clothing or accessories that are not in it.
+- For zones not covered by the description, use empty string "".
+- Be specific (colors/styles) so later video prompts can reuse them verbatim.
+
+Appearance (authoritative):
+${appearance}`
+        : `以下是主播的权威外观描述。请从中提取直播开始时主播「当前实际穿着」的五区状态，只输出一个 JSON（不要任何其它文字、不要 markdown 代码块）：
+{
+  "head": "头颈区当前状态（发型/发饰/耳饰/颈圈等）",
+  "upper": "上躯干当前状态（上衣/内搭/领口/项链等）",
+  "lower": "下躯干当前状态（裙/裤/围裙等）",
+  "legs": "腿足区当前状态（袜/鞋等）",
+  "note": "姿势/表情/道具备注，没有则留空"
+}
+规则：
+- 只从外观描述中提取，严禁添加描述中没有的服装/配饰
+- 描述中没有涉及的区，该字段写空字符串 ""
+- 服装要写具体（颜色/款式），供后续视频提示词逐字采用
+
+外观描述（权威）：
+${appearance}`
+      const raw = await this.chatOnce(prompt)
+      const obj = JSON.parse(this.extractJson(raw))
+      const s = (v: any): string => (typeof v === 'string' ? v : '')
+      this.clothingState = {
+        head: s(obj?.head),
+        upper: s(obj?.upper),
+        lower: s(obj?.lower),
+        legs: s(obj?.legs),
+        note: s(obj?.note)
+      }
+    } catch {
+      // 解析失败：保持空状态，互动回合按「以参考图/外貌描述为准」回退
+      this.clothingState = { ...EMPTY_CLOTHING_STATE }
+    }
   }
 
   /**
