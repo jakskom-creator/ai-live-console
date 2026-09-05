@@ -33,17 +33,10 @@ interface PromptNode {
  */
 export class ComfyExecutor {
   private segmentIndex = 0
-  /** 本次直播会话的 MotionContext latent 目录（每次开播生成新值，隔离旧直播的 latent，防止串角色/串内容） */
-  private sessionId = this.newSessionId()
   private adapter: WorkflowAdapter
 
   constructor(private readonly getSettings: () => AppSettings) {
     this.adapter = new WorkflowAdapter(getSettings)
-  }
-
-  /** 生成一次直播会话的独立 latent 目录名（如 h3_ctx_lx2m4n） */
-  private newSessionId(): string {
-    return `h3_ctx_${Date.now().toString(36)}`
   }
 
   /** 当前界面语言（跟随设置） */
@@ -62,28 +55,6 @@ export class ComfyExecutor {
 
   reset(): void {
     this.segmentIndex = 0
-    // 新直播会话：换一个全新的 latent 目录，避免读到上一次直播（角色A）的 MotionContext 缓存
-    this.sessionId = this.newSessionId()
-  }
-
-  /**
-   * 把工作流中 Motion Context 的 Load/Save Latent 路径改到本次会话目录。
-   * 这样每次直播（角色 A → 角色 B）都使用独立的 latent 空间，旧直播残留的
-   * clip_*.safetensors 永远不会被读到，杜绝「角色B第一段参考了角色A末帧」的串内容问题。
-   */
-  private isolateMotionContextSession(workflow: any): void {
-    for (const key of Object.keys(workflow)) {
-      const node = workflow[key]
-      const inputs = node?.inputs
-      if (!inputs || typeof inputs !== 'object') continue
-      const cls = String(node?.class_type || '')
-      if (/MotionContextLoadLatent/i.test(cls) && typeof inputs.latent_path === 'string') {
-        inputs.latent_path = this.sessionId
-      }
-      if (/MotionContextSaveLatent/i.test(cls) && typeof inputs.filename_prefix === 'string') {
-        inputs.filename_prefix = `${this.sessionId}/clip`
-      }
-    }
   }
 
   async generate(
@@ -124,9 +95,6 @@ export class ComfyExecutor {
       } else {
         this.applyWorkflowParams(workflow, videoPrompt, settings, extra?.referenceImagePath)
       }
-
-      // 无论走哪条路径，都把 MotionContext 的 latent 指向本次直播会话目录（隔离旧直播缓存）
-      this.isolateMotionContextSession(workflow)
     } catch (error: any) {
       return { ok: false, message: this.t('comfy.fillFail', { msg: String(error?.message || error) }) }
     }
@@ -206,6 +174,7 @@ export class ComfyExecutor {
    * - BasicGuider 的 conditioning 直接从 ReferenceToVideo 的 conditioning 输出接入（跳过 MotionContext）
    * - CreateVideo 的 images/audio 直接从 VAEDecode/VAEDecodeAudio 输出接入（跳过 MotionContextTrim）
    * - SamplerCustomAdvanced 的 latent_image 直接用 ReferenceToVideo 的 latent（跳过 MotionContext）
+   * - LoadLatent 的 clip_index 设为 0（插件语义：Load 0 不读文件），保证首段绝不读上一场直播的旧 latent
    * - 同时把 SaveLatent 的 clip_index 设为 1，让本段把自己的 latent 存成第一个上下文片段，
    *   供第二段 LoadLatent(clip_index=1) 加载，保证段与段之间的连续性（否则会读到旧的 clip_00001）。
    * 通过按 class_type 动态查找节点，兼容不同的节点 ID。
@@ -219,7 +188,8 @@ export class ComfyExecutor {
     const vaeDecode = findNode(/VAEDecode$/i) || findNode(/^VAEDecode$/i)
     const vaeDecodeAudio = findNode(/VAEDecodeAudio/i)
     const createVideo = findNode(/CreateVideo/i)
-    const saveLatent = findNode(/SaveLatent/i)
+    const loadLatent = findNode(/MotionContextLoadLatent/i)
+    const saveLatent = findNode(/MotionContextSaveLatent/i)
 
     if (refToVideo && basicGuider && basicGuider.node?.inputs) {
       // 跳过 MotionContext：conditioning 直接取自 ReferenceToVideo 输出 0
@@ -239,6 +209,11 @@ export class ComfyExecutor {
     const sampler = findNode(/SamplerCustomAdvanced/i)
     if (refToVideo && sampler && sampler.node?.inputs) {
       sampler.node.inputs.latent_image = [refToVideo.key, 1]
+    }
+
+    // 首段 LoadLatent clip_index=0：插件语义「Load 0 不读文件」，彻底避免读到上一场直播的旧 latent
+    if (loadLatent && typeof loadLatent.node?.inputs?.clip_index === 'number') {
+      loadLatent.node.inputs.clip_index = 0
     }
 
     // 首段把自己的 latent 存为 clip 1（第二段会 LoadLatent clip 1），保证上下文连续
