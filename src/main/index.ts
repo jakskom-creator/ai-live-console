@@ -43,8 +43,33 @@ function createWindow(): void {
     }
   })
 
-  if (process.env.ELECTRON_RENDERER_URL) {
-    void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
+  // 开发模式：electron-vite 注入 ELECTRON_RENDERER_URL（如 http://localhost:5173）
+  // vite dev server 在部分环境只监听 IPv6 ::1，而 localhost 解析为 127.0.0.1 会导致
+  // ERR_CONNECTION_REFUSED 黑屏。这里对 localhost 同时尝试 IPv6 形式 [::1]。
+  const devUrl = process.env.ELECTRON_RENDERER_URL
+  if (devUrl) {
+    const candidates = [devUrl]
+    if (/localhost/i.test(devUrl)) {
+      candidates.push(devUrl.replace(/localhost/i, '[::1]'))
+      candidates.push(devUrl.replace(/localhost/i, '127.0.0.1'))
+    }
+    const tryLoad = (url: string): Promise<boolean> =>
+      mainWindow!.loadURL(url).then(
+        () => true,
+        () => false
+      )
+    let loaded = false
+    void (async () => {
+      for (const url of candidates) {
+        if (await tryLoad(url)) {
+          loaded = true
+          break
+        }
+      }
+      if (!loaded) {
+        void mainWindow!.loadFile(join(__dirname, '../renderer/index.html'))
+      }
+    })()
   } else {
     void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
