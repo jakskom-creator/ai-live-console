@@ -928,6 +928,45 @@ button {
   color: var(--accent);
 }
 
+/* ===== AI 工作流适配 ===== */
+
+.adapter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.adapter-row .ghost-btn {
+  flex-shrink: 0;
+}
+
+.adapter-result {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--bg-3);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.adapter-result-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: var(--green);
+}
+
+.adapter-line {
+  color: var(--text);
+  font-family: Consolas, 'Courier New', monospace;
+}
+
+.adapter-line.dim {
+  color: var(--text-dim);
+  font-family: inherit;
+}
+
 .stage-topbar-left {
   display: flex;
   align-items: center;

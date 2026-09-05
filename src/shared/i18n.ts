@@ -205,7 +205,19 @@ const zh: Record<string, string> = {
   'comfy.submitFail': '提交 ComfyUI 失败：{msg}',
   'comfy.uploadFail': '上传参考图失败：{msg}',
   'comfy.uploadReadFail': '参考图文件读取失败：{msg}',
-  'comfy.uploadTimeout': '上传参考图超时（每次 {sec} 秒，已重试 {tries} 次）：{name}'
+  'comfy.uploadTimeout': '上传参考图超时（每次 {sec} 秒，已重试 {tries} 次）：{name}',
+
+  // ===== AI 工作流适配器（主进程） =====
+  'adapter.emptyReply': 'AI 未返回工作流分析结果，请重试',
+  'adapter.badJson': 'AI 返回的工作流映射格式无法解析，请重试',
+  'adapter.nothingFound': 'AI 未能识别出任何可填写的节点，请检查工作流格式',
+  'adapter.found': 'AI 已识别 {count} 处可填写位置',
+  'adapter.analyzing': '正在用 AI 识别工作流结构…',
+  'adapter.analyze': '🤖 AI 识别工作流',
+  'adapter.reanalyze': '🤖 重新识别',
+  'adapter.done': '✅ 已识别工作流，生成时自动按映射填值',
+  'adapter.hint': '工作流结构差异大时，先用 AI 识别节点，避免提示词/参数填不进去',
+  'adapter.cleared': '已清除工作流映射'
 }
 
 const en: Record<string, string> = {
@@ -403,7 +415,19 @@ const en: Record<string, string> = {
   'comfy.submitFail': 'Failed to submit to ComfyUI: {msg}',
   'comfy.uploadFail': 'Failed to upload reference image: {msg}',
   'comfy.uploadReadFail': 'Failed to read reference image: {msg}',
-  'comfy.uploadTimeout': 'Upload timed out ({sec}s per attempt, {tries} attempts): {name}'
+  'comfy.uploadTimeout': 'Upload timed out ({sec}s per attempt, {tries} attempts): {name}',
+
+  // ===== AI workflow adapter (main process) =====
+  'adapter.emptyReply': 'AI returned no workflow analysis, please retry',
+  'adapter.badJson': 'AI workflow mapping could not be parsed, please retry',
+  'adapter.nothingFound': 'AI could not identify any writable nodes, please check the workflow format',
+  'adapter.found': 'AI identified {count} writable locations',
+  'adapter.analyzing': 'Analyzing workflow with AI…',
+  'adapter.analyze': '🤖 Analyze Workflow',
+  'adapter.reanalyze': '🤖 Re-analyze',
+  'adapter.done': '✅ Workflow mapped; values are filled automatically on generation',
+  'adapter.hint': 'Workflows differ a lot; use AI analysis first so prompts/params actually land',
+  'adapter.cleared': 'Workflow mapping cleared'
 }
 
 /** 礼物等级显示名（保留中文作为引擎内部标识，CSS 类名也依赖中文） */

@@ -5,6 +5,7 @@ import { StreamServer } from './streamServer'
 import { AiEngine } from './aiEngine'
 import { ComfyExecutor } from './comfyExecutor'
 import { FeedbackWatcher } from './feedbackWatcher'
+import { WorkflowAdapter } from './workflowAdapter'
 import type { AppSettings, FeedbackEventPayload, StreamEventPayload } from '../shared/types'
 import { tr, type Lang } from '../shared/i18n'
 
@@ -14,6 +15,7 @@ let streamServer: StreamServer | null = null
 let aiEngine: AiEngine | null = null
 let comfyExecutor: ComfyExecutor | null = null
 let feedbackWatcher: FeedbackWatcher | null = null
+let workflowAdapter: WorkflowAdapter | null = null
 
 /** 当前界面语言（跟随设置） */
 function lang(): Lang {
@@ -74,7 +76,7 @@ function sendConversation(entry: { role: string; content: string; time: number }
 }
 
 function registerIpc(): void {
-  if (!settingsStore || !streamServer || !aiEngine || !comfyExecutor || !feedbackWatcher) return
+  if (!settingsStore || !streamServer || !aiEngine || !comfyExecutor || !feedbackWatcher || !workflowAdapter) return
 
   ipcMain.handle('settings:get', () => settingsStore!.get())
   ipcMain.handle('settings:set', async (_event, patch: Partial<AppSettings>) => {
@@ -238,6 +240,30 @@ function registerIpc(): void {
       return { ok: false, message: t('engine.comfyConnectFail', { msg: String(error?.message || error) }) }
     }
   })
+
+  // AI 工作流适配：分析工作流结构，返回节点映射并保存到设置
+  ipcMain.handle('workflow:analyze', async () => {
+    const settings = settingsStore!.get()
+    if (!settings.workflowPath) {
+      return { ok: false, message: t('adapter.nothingFound') + '（' + t('start.workflow') + '）' }
+    }
+    sendStatus(t('adapter.analyzing'))
+    const result = await workflowAdapter!.analyze(settings.workflowPath)
+    if (result.ok && result.mapping) {
+      const mapping = { ...result.mapping, workflowPath: settings.workflowPath, model: settings.model }
+      await settingsStore!.update({ workflowMapping: mapping })
+      sendStatus(t('adapter.done'))
+    } else {
+      sendStatus(result.message)
+    }
+    return result
+  })
+
+  // 清除已保存的工作流映射
+  ipcMain.handle('workflow:clear-mapping', async () => {
+    await settingsStore!.update({ workflowMapping: null })
+    return { ok: true, message: t('adapter.cleared') }
+  })
   ipcMain.handle('app:open-path', async (_event, target: string) => {
     if (target) await shell.openPath(target)
   })
@@ -264,6 +290,7 @@ app.whenReady().then(async () => {
   await streamServer.start(settings.streamsDir)
   aiEngine = new AiEngine(() => settingsStore!.get())
   comfyExecutor = new ComfyExecutor(() => settingsStore!.get())
+  workflowAdapter = new WorkflowAdapter(() => settingsStore!.get())
   feedbackWatcher = new FeedbackWatcher()
   await feedbackWatcher.start(settings.feedbackDir)
 

@@ -28,6 +28,10 @@ const api = {
   resetEngine: (): Promise<EngineResult> => ipcRenderer.invoke('engine:reset'),
   // ComfyUI
   testComfy: (): Promise<EngineResult> => ipcRenderer.invoke('comfy:test'),
+  // AI 工作流适配
+  analyzeWorkflow: (): Promise<EngineResult & { mapping?: import('../shared/types').WorkflowMapping }> =>
+    ipcRenderer.invoke('workflow:analyze'),
+  clearWorkflowMapping: (): Promise<EngineResult> => ipcRenderer.invoke('workflow:clear-mapping'),
   openPath: (path: string): Promise<void> => ipcRenderer.invoke('app:open-path', path),
   onFilesChanged: (callback: (payload: StreamEventPayload) => void): (() => void) => {
     const listener = (_event: IpcRendererEvent, payload: StreamEventPayload): void => callback(payload)

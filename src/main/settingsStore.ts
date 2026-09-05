@@ -23,7 +23,9 @@ const DEFAULTS: AppSettings = {
   workflowPath: '',
   resolution: '0.4MP',
   steps: 6,
-  durationSec: 10
+  durationSec: 10,
+  // AI 识别的工作流节点映射（初始为空）
+  workflowMapping: null
 }
 
 export class SettingsStore {

@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs'
 import { basename, join, extname } from 'node:path'
 import type { AppSettings } from '../shared/types'
 import { tr, type Lang } from '../shared/i18n'
+import { WorkflowAdapter } from './workflowAdapter'
 
 export interface ComfyResult {
   ok: boolean
@@ -32,8 +33,11 @@ interface PromptNode {
  */
 export class ComfyExecutor {
   private segmentIndex = 0
+  private adapter: WorkflowAdapter
 
-  constructor(private readonly getSettings: () => AppSettings) {}
+  constructor(private readonly getSettings: () => AppSettings) {
+    this.adapter = new WorkflowAdapter(getSettings)
+  }
 
   /** 当前界面语言（跟随设置） */
   private lang(): Lang {
@@ -69,11 +73,25 @@ export class ComfyExecutor {
       return { ok: false, message: this.t('comfy.readFail', { msg: String(error?.message || error) }) }
     }
 
-    // 修改工作流：填提示词、参考图、画质、步数、时长
+    // 修改工作流：优先用 AI 映射（已识别时），否则用启发式规则
     try {
       // 先确保角色参考图被上传到 ComfyUI 的 input 目录（避免文件不在当前根目录导致参考图失效）
       await this.uploadReferenceImage(settings, extra?.referenceImagePath)
-      this.applyWorkflowParams(workflow, videoPrompt, settings, extra?.referenceImagePath)
+
+      const mapping = settings.workflowMapping
+      const refFileName = extra?.referenceImagePath ? basename(extra.referenceImagePath) : undefined
+      if (mapping) {
+        this.adapter.applyMapping(workflow, mapping, {
+          prompt: videoPrompt,
+          imageFileName: refFileName,
+          resolution: settings.resolution,
+          durationSec: settings.durationSec,
+          steps: settings.steps,
+          segmentIndex: this.segmentIndex
+        })
+      } else {
+        this.applyWorkflowParams(workflow, videoPrompt, settings, extra?.referenceImagePath)
+      }
     } catch (error: any) {
       return { ok: false, message: this.t('comfy.fillFail', { msg: String(error?.message || error) }) }
     }

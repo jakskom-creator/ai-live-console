@@ -21,6 +21,8 @@ export interface AppSettings {
   resolution: string
   steps: number
   durationSec: number
+  /** AI 识别的工作流节点映射（由 workflow:analyze 生成并保存，用于按映射填值） */
+  workflowMapping: WorkflowMapping | null
 }
 
 export interface VideoFile {
@@ -117,4 +119,33 @@ export interface AnchorProfile {
   persona: string
   appearance: string
   scene: string
+}
+
+/**
+ * AI 识别出的工作流「节点映射」：定位工作流 JSON 中每个可填值的位置。
+ * nodeId 是工作流顶层 key（如 "191" 或 "245:209"），
+ * field 是节点内的属性路径（点号分隔，如 "inputs.prompt" 或 "inputs.widgets_values.0"）。
+ */
+export interface WorkflowFieldRef {
+  nodeId: string
+  field: string
+}
+
+export interface WorkflowMapping {
+  /** 视频提示词写入位置 */
+  prompt?: WorkflowFieldRef
+  /** 主播参考图文件名写入位置（LoadImage 的 inputs.image 等） */
+  image?: WorkflowFieldRef
+  /** 分辨率参数写入位置（ResolutionSelector.megapixels 或 width/height 输入） */
+  resolution?: WorkflowFieldRef
+  /** 每段时长（秒）写入位置（PrimitiveFloat.value 等） */
+  duration?: WorkflowFieldRef
+  /** 生成步数写入位置（BasicScheduler/KSampler 的 inputs.steps） */
+  steps?: WorkflowFieldRef
+  /** Motion Context Load Latent 的 clip_index 位置 */
+  motionLoad?: WorkflowFieldRef
+  /** Motion Context Save Latent 的 clip_index 位置 */
+  motionSave?: WorkflowFieldRef
+  /** 附加说明（AI 诊断信息，展示用） */
+  notes?: string
 }

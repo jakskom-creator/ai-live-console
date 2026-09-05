@@ -745,6 +745,28 @@ function ProjectStartModal({
     setStatus(result.ok ? `✅ ${result.message}` : `❌ ${result.message}`)
   }
 
+  // 用 AI 分析工作流结构，生成节点映射（提示词/参考图/参数填值位置）
+  const analyzeWorkflow = async (): Promise<void> => {
+    if (!draft.workflowPath) {
+      setStatus(`⚠️ ${t('start.workflow')}`)
+      return
+    }
+    // 先把当前配置（含工作流路径/分辨率/步数/时长）保存，再触发分析
+    setStatus(t('adapter.analyzing'))
+    const saved = await window.api.saveSettings(draft)
+    setDraft(saved)
+    onSaved(saved)
+    const result = await window.api.analyzeWorkflow()
+    if (result.ok) {
+      setStatus(`✅ ${result.message}`)
+      const fresh = await window.api.getSettings()
+      setDraft(fresh)
+      onSaved(fresh)
+    } else {
+      setStatus(`❌ ${result.message}`)
+    }
+  }
+
   const start = async (): Promise<void> => {
     setStatus(t('start.saving'))
     const saved = await window.api.saveSettings(draft)
@@ -856,6 +878,25 @@ function ProjectStartModal({
               {t('start.chooseWorkflow')}
             </button>
           </div>
+          <div className="adapter-row">
+            <button className="ghost-btn" onClick={() => void analyzeWorkflow()}>
+              {draft.workflowMapping ? t('adapter.reanalyze') : t('adapter.analyze')}
+            </button>
+            <span className="hint">{t('adapter.hint')}</span>
+          </div>
+          {draft.workflowMapping && (
+            <div className="adapter-result">
+              <div className="adapter-result-title">{t('adapter.done')}</div>
+              {draft.workflowMapping.prompt && <div className="adapter-line">💬 prompt → #{draft.workflowMapping.prompt.nodeId}.{draft.workflowMapping.prompt.field}</div>}
+              {draft.workflowMapping.image && <div className="adapter-line">🖼️ image → #{draft.workflowMapping.image.nodeId}.{draft.workflowMapping.image.field}</div>}
+              {draft.workflowMapping.resolution && <div className="adapter-line">📐 resolution → #{draft.workflowMapping.resolution.nodeId}.{draft.workflowMapping.resolution.field}</div>}
+              {draft.workflowMapping.duration && <div className="adapter-line">⏱️ duration → #{draft.workflowMapping.duration.nodeId}.{draft.workflowMapping.duration.field}</div>}
+              {draft.workflowMapping.steps && <div className="adapter-line">🔢 steps → #{draft.workflowMapping.steps.nodeId}.{draft.workflowMapping.steps.field}</div>}
+              {draft.workflowMapping.motionLoad && <div className="adapter-line">🔗 motionLoad → #{draft.workflowMapping.motionLoad.nodeId}.{draft.workflowMapping.motionLoad.field}</div>}
+              {draft.workflowMapping.motionSave && <div className="adapter-line">🔗 motionSave → #{draft.workflowMapping.motionSave.nodeId}.{draft.workflowMapping.motionSave.field}</div>}
+              {draft.workflowMapping.notes && <div className="adapter-line dim">{draft.workflowMapping.notes}</div>}
+            </div>
+          )}
         </div>
 
         <div className="form-row form-grid">
