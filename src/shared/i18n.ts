@@ -139,6 +139,13 @@ const zh: Record<string, string> = {
   'start.initializing': '正在初始化…',
   'start.goLive': '▶ 开始直播',
   'start.saving': '正在保存配置并初始化…',
+  'start.streamStyle': '直播画面风格（强制生效，防止二次元参考图被画成真人）',
+  'start.styleAuto': '跟随参考图',
+  'start.styleRealistic': '真人写实',
+  'start.styleAnime': '动漫二次元',
+  'start.style3d': '3D 渲染',
+  'start.styleCustom': '自定义',
+  'start.styleCustomPlaceholder': '输入自定义风格描述，例如：手绘水彩风、像素风、哥特暗黑风…',
 
   // ===== 设置 =====
   'settings.title': '设置',
@@ -348,6 +355,13 @@ const en: Record<string, string> = {
   'start.testComfy': '🔌 Test ComfyUI',
   'start.initializing': 'Initializing…',
   'start.goLive': '▶ Start Live',
+  'start.streamStyle': 'Stream visual style (enforced — prevents an anime reference from being rendered as a real person)',
+  'start.styleAuto': 'Follow Reference',
+  'start.styleRealistic': 'Photorealistic',
+  'start.styleAnime': '2D Anime',
+  'start.style3d': '3D Render',
+  'start.styleCustom': 'Custom',
+  'start.styleCustomPlaceholder': 'Describe the style, e.g. hand-drawn watercolor, pixel art, gothic dark…',
   'start.saving': 'Saving config and initializing…',
 
   // ===== Settings =====

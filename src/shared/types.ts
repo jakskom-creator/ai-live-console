@@ -11,6 +11,10 @@ export interface AppSettings {
   extraRequirements: string
   /** 界面语言（默认中文；英文模式下引擎内容语言也跟随英文） */
   language: Lang
+  /** 直播画面风格：auto（跟随参考图）/ realistic（真人写实）/ anime（动漫二次元）/ 3d（3D 渲染）/ custom（自定义） */
+  streamStyle: 'auto' | 'realistic' | 'anime' | '3d' | 'custom'
+  /** 自定义风格描述（streamStyle = custom 时使用，注入提示词强制生效） */
+  customStyleText: string
   // OpenAI 兼容 API（内置 AI 引擎）
   apiBaseUrl: string
   apiKey: string

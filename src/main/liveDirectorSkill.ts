@@ -4,14 +4,54 @@
  * DirectorTurnOutput JSON，供主进程脚本解析执行（展示弹幕、播放特效、提交 ComfyUI）。
  */
 
-export function buildSystemPrompt(): string {
-  return buildGeneralSystemPrompt()
+export interface DirectorPromptOptions {
+  /** 直播画面风格（默认 auto：跟随参考图） */
+  style?: 'auto' | 'realistic' | 'anime' | '3d' | 'custom'
+  /** 自定义风格描述（style = custom 时注入，强制生效） */
+  customStyleText?: string
+}
+
+/** 各风格的强制画面描述（中英） */
+const STYLE_RULES: Record<string, { zh: string; en: string }> = {
+  realistic: {
+    zh: '画面风格：真人写实风（photorealistic, live-action, cinematic realism），真实人物质感、自然皮肤与光影；禁止二次元/卡通化。',
+    en: 'Visual style: photorealistic live-action, cinematic realism, real human skin and lighting; never anime or cartoon.'
+  },
+  anime: {
+    zh: '画面风格：动漫二次元风（2D anime, Japanese animation, cel shading），干净描线、二次元五官比例、赛璐璐平涂；禁止真人化/写实化。',
+    en: 'Visual style: 2D anime, Japanese animation, cel shading, clean line art, anime facial proportions; never photorealistic.'
+  },
+  '3d': {
+    zh: '画面风格：3D 渲染风（3D render, CG, stylized 3D, Pixar-like），三维模型渲染、柔光、卡通 CG 质感；禁止真人实拍。',
+    en: 'Visual style: 3D render, CG, stylized 3D, Pixar-like; three-dimensional rendering with soft lighting; never live-action.'
+  },
+  custom: {
+    zh: '画面风格：按用户自定义风格描述绘制（见下方「自定义风格」），严格遵循，禁止偏离。',
+    en: 'Visual style: follow the user custom style description below (see "Custom Style"), strictly, never deviate.'
+  }
+}
+
+export function buildSystemPrompt(opts?: DirectorPromptOptions): string {
+  return buildGeneralSystemPrompt(opts)
 }
 
 /**
  * 通用全年龄导演技能（默认模式）。
  */
-function buildGeneralSystemPrompt(): string {
+function buildGeneralSystemPrompt(opts?: DirectorPromptOptions): string {
+  const style = opts?.style ?? 'auto'
+  const styleRule = STYLE_RULES[style]
+  const customText = (opts?.customStyleText || '').trim()
+  const styleZh =
+    style === 'auto'
+      ? '画面风格：必须严格跟随主播参考图/外貌描述本身的艺术风格（参考图是二次元就画二次元，是真人就画真人），禁止跨风格改写（例如把二次元参考图画成真人、或把真人参考图卡通化）。'
+      : (styleRule?.zh ?? '')
+  const styleEn =
+    style === 'auto'
+      ? 'Visual style: strictly follow the art style of the streamer reference image / appearance description itself (if the reference is anime, render anime; if real, render real). Never switch styles (e.g. never turn an anime reference into a photorealistic person, or cartoonify a real one).'
+      : (styleRule?.en ?? '')
+  const customZh = style === 'custom' && customText ? `\n自定义风格：${customText}` : ''
+  const customEn = style === 'custom' && customText ? `\nCustom style: ${customText}` : ''
   return `# AI 直播导演技能（内置引擎版）
 
 你是一个 AI 虚拟直播的导演和主播扮演者。观众通过文字给你发互动（弹幕/礼物/指令），
@@ -26,6 +66,18 @@ function buildGeneralSystemPrompt(): string {
 3. 礼物/特效回合：额外输出一个 effect 对象（name/emoji/level）。
 4. 写视频提示词 videoPrompt：**严格按下方「videoPrompt 官方 Ref2VA 六段式书写规范」写，缺一不可、顺序不可调换**。
 5. 更新 nextState：记录本段末帧/服装/情绪，供下一段保持连续性。
+
+## 画面风格锁定（最高优先级，任何段都必须遵守，不得更改）
+
+${styleZh}${customZh}
+${styleEn}${customEn}
+
+- 风格是对**整段画面**的强制要求：detailed_description 每个镜头的「风格与景别」、subject_definitions 中
+  对 <Subject 1> 的描述、以及 summary 都必须显式体现并保持该风格；禁止出现与指定风格冲突的措辞
+  （例如二次元风却写 live-action / real person / skin pores）。
+- 参考图 <Picture 1> 只提供角色身份特征（脸/发/体型/服装），**不决定画面风格**；画面风格一律以本
+  节指定为准。参考图是二次元但风格锁定为真人时，也要按真人画风呈现该角色特征；参考图是真人但
+  风格锁定为动漫时，也要按二次元画风呈现。
 
 ## videoPrompt 书写规范（官方 Ref2VA 六段式 · 通用全年龄版 · 强制）
 

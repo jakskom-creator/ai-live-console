@@ -858,6 +858,40 @@ function ProjectStartModal({
         </div>
 
         <div className="form-row">
+          <label>{t('start.streamStyle')}</label>
+          <div className="style-options">
+            {(
+              [
+                ['auto', 'start.styleAuto'],
+                ['realistic', 'start.styleRealistic'],
+                ['anime', 'start.styleAnime'],
+                ['3d', 'start.style3d'],
+                ['custom', 'start.styleCustom']
+              ] as [string, string][]
+            ).map(([value, labelKey]) => (
+              <button
+                key={value}
+                type="button"
+                className={draft.streamStyle === value ? 'style-card active' : 'style-card'}
+                onClick={() => setDraft((d) => ({ ...d, streamStyle: value as AppSettings['streamStyle'] }))}
+              >
+                {t(labelKey)}
+              </button>
+            ))}
+          </div>
+          {draft.streamStyle === 'custom' && (
+            <div style={{ marginTop: 8 }}>
+              <textarea
+                value={draft.customStyleText}
+                onChange={(e) => setDraft((d) => ({ ...d, customStyleText: e.target.value }))}
+                placeholder={t('start.styleCustomPlaceholder')}
+                rows={2}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="form-row">
           <label>{t('start.comfyUrl')}</label>
           <input
             value={draft.comfyUrl}

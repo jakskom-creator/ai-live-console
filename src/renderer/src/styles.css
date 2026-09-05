@@ -928,6 +928,36 @@ button {
   color: var(--accent);
 }
 
+/* ===== 直播风格选择 ===== */
+
+.style-options {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.style-card {
+  text-align: center;
+  padding: 10px 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-3);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.style-card:hover {
+  border-color: var(--accent);
+}
+
+.style-card.active {
+  border-color: var(--accent);
+  background: rgba(91, 140, 255, 0.12);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
 /* ===== AI 工作流适配 ===== */
 
 .adapter-row {

@@ -14,6 +14,9 @@ const DEFAULTS: AppSettings = {
   extraRequirements: '',
   // 界面语言（默认中文）
   language: 'zh',
+  // 直播画面风格（默认跟随参考图）
+  streamStyle: 'auto',
+  customStyleText: '',
   // OpenAI 兼容 API
   apiBaseUrl: 'https://api.openai.com/v1',
   apiKey: '',

@@ -29,6 +29,42 @@ export class AiEngine {
     return tr(this.lang(), key, vars)
   }
 
+  /** 直播画面风格的强制描述（角色卡与系统提示词共用，防止二次元参考图被画成真人） */
+  private styleLockText(): { zh: string; en: string } {
+    const settings = this.getSettings()
+    const style = settings.streamStyle || 'auto'
+    const custom = (settings.customStyleText || '').trim()
+    switch (style) {
+      case 'realistic':
+        return {
+          zh: '直播画面风格为「真人写实」（photorealistic, live-action）：真实人物质感、自然皮肤纹理、电影级实拍感，严禁二次元/卡通化。',
+          en: 'The stream visual style is PHOTOREALISTIC / live-action: real human texture, natural skin, cinematic realism. Never anime or cartoon.'
+        }
+      case 'anime':
+        return {
+          zh: '直播画面风格为「动漫二次元」（2D anime, Japanese animation）：赛璐璐平涂、干净描线、二次元五官比例，绝对禁止真人化/写实化。',
+          en: 'The stream visual style is 2D ANIME / Japanese animation: cel shading, clean line art, anime facial proportions. Absolutely not photorealistic.'
+        }
+      case '3d':
+        return {
+          zh: '直播画面风格为「3D 渲染」（3D render, CG）：三维模型渲染、柔光、卡通 CG 质感，类似皮克斯/游戏 CG。',
+          en: 'The stream visual style is 3D RENDER / CG: 3D model rendering, soft lighting, stylized CG look, Pixar-like.'
+        }
+      case 'custom':
+        return custom
+          ? {
+              zh: `直播画面风格按用户自定义描述：${custom}（严格遵循，禁止偏离）`,
+              en: `The stream visual style follows the user custom description: ${custom} (strictly, never deviate)`
+            }
+          : { zh: '直播画面风格：按用户自定义描述（未填写时跟随参考图风格）', en: 'Visual style: follow user custom description (fallback to reference style if empty).' }
+      default:
+        return {
+          zh: '直播画面风格：严格跟随主播参考图/外貌描述本身的艺术风格（参考图是二次元就画二次元，是真人就画真人），禁止跨风格改写。',
+          en: 'Visual style: strictly follow the art style of the streamer reference image / appearance description itself (anime if the reference is anime, real if real). Never switch styles.'
+        }
+    }
+  }
+
   getProfile() {
     return this.profile
   }
@@ -56,6 +92,7 @@ export class AiEngine {
   async initProfile(): Promise<EngineResult> {
     const settings = this.getSettings()
     const en = this.lang() === 'en'
+    const styleLock = this.styleLockText()
     const appearance = await this.buildAppearanceText(settings)
     const personalityDefault = en
       ? 'Please generate a natural, engaging streamer personality at random'
@@ -69,6 +106,8 @@ export class AiEngine {
 Appearance (authoritative, keep every key trait: hair, clothing, colors, accessories):
 ${appearance}
 
+${styleLock.en}
+
 Personality: ${settings.personality || personalityDefault}
 ${langLine}
 Extra requirements: ${settings.extraRequirements || 'none'}
@@ -80,6 +119,8 @@ Rule: the 外貌 field must match the appearance above exactly — never swap in
 
 外观描述（权威，外貌字段必须忠实沿用）：
 ${appearance}
+
+${styleLock.zh}
 
 性格：${settings.personality || personalityDefault}
 ${langLine}
@@ -314,7 +355,11 @@ ${appearance}`
    * 保证每一段 videoPrompt 都围绕同一位主播的外貌与描述展开，而不是凭空生成。
    */
   private buildContextualSystemPrompt(): string {
-    const base = buildSystemPrompt()
+    const settings = this.getSettings()
+    const base = buildSystemPrompt({
+      style: settings.streamStyle,
+      customStyleText: settings.customStyleText
+    })
     const en = this.lang() === 'en'
     const p = this.profile
     if (!p) return base
