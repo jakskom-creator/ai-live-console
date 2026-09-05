@@ -1,6 +1,6 @@
 {
   "name": "ai-live-console",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A desktop AI live-stream simulator: plays AI-generated video segments with danmaku/gifts/activities, powered by an OpenAI-compatible API and ComfyUI.",
   "main": "./out/main/index.js",
   "author": "",
