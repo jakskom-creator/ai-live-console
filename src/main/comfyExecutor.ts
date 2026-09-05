@@ -33,6 +33,8 @@ interface PromptNode {
  */
 export class ComfyExecutor {
   private segmentIndex = 0
+  /** 上次生成时使用的分辨率（检测分辨率变化，变了就重置 MotionContext 链） */
+  private lastResolution = ''
   private adapter: WorkflowAdapter
 
   constructor(private readonly getSettings: () => AppSettings) {
@@ -55,6 +57,7 @@ export class ComfyExecutor {
 
   reset(): void {
     this.segmentIndex = 0
+    this.lastResolution = ''
   }
 
   async generate(
@@ -78,6 +81,13 @@ export class ComfyExecutor {
       // 先确保角色参考图被上传到 ComfyUI 的 input 目录（避免文件不在当前根目录导致参考图失效）
       await this.uploadReferenceImage(settings, extra?.referenceImagePath)
 
+      // 分辨率变化检测：MotionContext latent 无法跨分辨率续接，变了就强制从第一段重新开始
+      const resKey = `${settings.resolution}|${settings.durationSec}`
+      if (this.lastResolution && this.lastResolution !== resKey && this.segmentIndex > 0) {
+        this.segmentIndex = 0
+      }
+      this.lastResolution = resKey
+
       const mapping = settings.workflowMapping
       // 映射只对「生成它的那份工作流」有效：换过工作流文件后旧映射失效，回退启发式
       const mappingValid =
@@ -94,6 +104,17 @@ export class ComfyExecutor {
         })
       } else {
         this.applyWorkflowParams(workflow, videoPrompt, settings, extra?.referenceImagePath)
+      }
+
+      // MotionContext 链统一处理（无论走映射还是启发式都必须执行）：
+      // 首段绕行（Load 0 不读文件 + 接线绕过，绝不读上一场直播的旧 latent），
+      // 后续段 Load 上一段 / Save 当前段。
+      const keys = Object.keys(workflow)
+      const nodes = keys.map((key) => ({ key, node: workflow[key] }))
+      if (this.segmentIndex === 0) {
+        this.bypassFirstSegment(workflow, nodes)
+      } else {
+        this.applyMotionContext(nodes, this.segmentIndex)
       }
     } catch (error: any) {
       return { ok: false, message: this.t('comfy.fillFail', { msg: String(error?.message || error) }) }
@@ -161,12 +182,8 @@ export class ComfyExecutor {
     // 5. 步数：查找含 steps 的采样/调度节点
     this.applySteps(nodes, settings.steps)
 
-    // 6. MotionContext：第一段绕行，后续段走完整链
-    if (this.segmentIndex === 0) {
-      this.bypassFirstSegment(workflow, nodes)
-    } else {
-      this.applyMotionContext(nodes, this.segmentIndex)
-    }
+    // 注：MotionContext 链（首段绕行 / 后续段 Load-Save）由 generate 统一处理，
+    // 避免映射与启发式两条路径行为不一致。
   }
 
   /**

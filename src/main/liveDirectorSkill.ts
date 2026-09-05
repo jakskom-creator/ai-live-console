@@ -122,18 +122,44 @@ videoPrompt 必须按以下 6 个 section 顺序组织，缺一不可、顺序�
   （请固定使用外文保留标记：fully_preserved / partially_preserved / transferred / reused。）
 - 若有换装/状态变化，用 partially_preserved 写明变化；无变化用 fully_preserved。
 
-### F. detailed_description（逐镜主描述）
+### F. detailed_description（逐镜主描述）—— 生动化表演的核心，必须写满细节
+
+- **篇幅硬性要求（官方规范）**：generation 任务的 detailed_description 为 **350–500 英文单词**，
+  每个镜头至少 60–100 词。禁止一句话带过、禁止把镜头压缩成"主播笑着挥手"这类梗概。
+  一个镜头一个镜头地铺满：构图 → 主体 → 环境 → 动作 → 表情 → 视线 → 机位 → 声音。
 
 - [Shot 1] 开头先写风格与景别：[Shot 1] Live-action, cinematic, a medium shot frames ...
   （本直播可写 webcam solo video；有动作时从 wide/medium 建立）。
 - 后续镜头写 [Shot 2] At 00:SS.SSS, the camera cuts to ...，时间戳严格递增且 < 该段时长。
 - **对白**：稳定编号 (S1)；首现给出音色描述；台词放 <d>[Chinese] 逐字台词</d>，不翻译不改写。
   台词量限制见「台词量硬性限制」（每段最多两句话、每句 ≤10 字）。画外音写 in an off-screen voiceover。
-- **动作分解为因果微节拍链**：[谁] + [哪个肢体] + [启动与方向] + [轨迹/幅度/速度] + [接触或完成] + [结果 + 反应]。
+
+- **表情必须是"状态机"，不是标签（防面瘫铁律）**：每个镜头都要写主播当前的**具体面部状态**
+  （眉眼/嘴角/脸颊/视线），并在镜头内或镜头间给出**表情转换过程**，禁止全程同一张脸。写法：
+  - 不要只写 "smiles" / "looks happy"；要写可验证的肌肉细节：
+    "the corners of her mouth lift into a small smile, her eyes crinkle slightly, and she tilts her head"
+  - 表情转换要写清"从什么变成什么"："her raised brows slowly relax as a warm smile spreads across her face"；
+    "her lips part slightly and her eyes widen a touch in surprise"
+  - 全段至少出现 **2–3 次表情/神态变化**（微笑→好奇→害羞→惊讶…），接续段继续从上一段末帧表情演化。
+
+- **微动作是"活着"的关键（防僵硬化铁律）**：即使主播只是坐着聊天，也要写持续的自然微动作：
+  眨眼（blinks）、呼吸起伏（breathing, chest rising and falling）、视线移动（gaze shifts）、
+  手指小动作（fingers curl/tap/fidget）、头部微倾（tilts her head）、重心转移（shifts her weight）、
+  拨弄头发（tucks a strand of hair behind her ear）。每 2–3 秒至少一个微动作，避免静止帧。
+
+- **动作分解为因果微节拍链（官方规范）**：[谁] + [哪个肢体] + [启动与方向] + [轨迹/幅度/速度] + [接触或完成] + [结果 + 反应]。
   动作写清楚重心与视线；循环动作（挥手、摇铃、跳舞等）写**连续节拍与周期重复**，如
   repeating this cycle approximately twice per second without pause。
-- **反修辞**：删掉情绪形容词（beautiful/gentle/tender/soft/warm/graceful…），每个词都必须是可验证的机械描述。
+  身体要有"反应惯性"：抬手时肩膀随之耸动、停止时手臂自然回落，不要机械地瞬移。
+
+- **反修辞的正确用法**：删掉空泛情绪形容词（beautiful/gentle/tender/soft/warm/graceful…），
+  但不是不写情绪——而是**用可验证的物理细节替代情绪**：把 "happily" 换成
+  "with her eyes curved into crescents and a wide smile"；把 "shyly" 换成
+  "averting her gaze and brushing a strand of hair behind her ear"。
+  情绪必须通过肌肉/姿态/视线/呼吸表达出来，而不是消失。
+
 - **反代词**：多肢体场景禁用歧义代词，全部具名——用 the streamer's right hand，代词只在本句有唯一先行词时使用。
+
 - **机位调度**：固定 webcam 机位（stable eye-level webcam framing, waist-up）。第一段（seg_001）
   可 1–2 次机位/景别变化，景别词写进 [Shot N] 开头（wide/medium/close-up），至少 1 个面部/手部/动作细节特写；
   **接续段（seg_002+）禁止任何机位/景别变化**（见 I 节）。
@@ -162,6 +188,7 @@ videoPrompt 必须按以下 6 个 section 顺序组织，缺一不可、顺序�
    - Scene: 场景与机位（固定 webcam 机位，景别不变）
    - Outfit: 当前实际穿着（逐字采用 clothingState）
    - Pose & Contact: 上一段末帧的姿态/肢体位置/接触点（来自系统提示词「上一段末帧状态」，逐字沿用）
+   - Facial State: 上一段末帧的表情细节（眉眼/嘴角/视线方向）——接续段必须从此表情继续演化，禁止突然换脸
    - Gaze: 视线方向
    - Motion: 进行中的动作与节奏（周期/速度）
    - 声明：the previous frame's pose, gaze, outfit, camera angle and scene continue seamlessly; the motion continues at the same rhythm without resetting.
@@ -209,8 +236,8 @@ videoPrompt 必须按以下 6 个 section 顺序组织，缺一不可、顺序�
 - effect 仅在礼物/特效回合出现，普通弹幕回合省略该字段。
 - 每次互动必须包含 line、danmaku、videoPrompt、nextState、clothingState、system。
 - **nextState 必须写"可续接"的末帧状态**：写成具体画面而非情绪总结——固定格式
-  「机位/景别，身体姿态/肢体位置，视线方向，进行中的动作与节奏，表情，服装状态」，
-  例如：「固定腰部以上平视机位，右手抬到胸前比心、五指微张，视线看向镜头，比心动作进行到一半（收合阶段，约每秒一次循环），面带微笑，深蓝白女仆装与白色围裙，蓝色渐变长发垂在肩前」。
+  「机位/景别，身体姿态/肢体位置，视线方向，进行中的动作与节奏，**表情细节（眉眼/嘴角）**，微动作状态，服装状态」，
+  例如：「固定腰部以上平视机位，右手抬到胸前比心、五指微张，视线看向镜头，比心动作进行到一半（收合阶段，约每秒一次循环），嘴角微微上扬、双眼弯成月牙，正眨了一下眼，深蓝白女仆装与白色围裙，蓝色渐变长发垂在肩前」。
   禁止只写"主播很可爱地结束了互动"这类无法续接的描述。
 - **clothingState 是主播状态系统的唯一权威输入，每回合必填**：严格照抄系统提示词
   「主播状态系统」中五区当前状态；本段若衣物/裸露/状态有变化，五区要同步更新为新状态；
